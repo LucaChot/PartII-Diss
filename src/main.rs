@@ -1,28 +1,14 @@
 use std::{thread, sync::mpsc};
 
 mod broadcast;
+mod processor;
 use broadcast::BChannel;
+use processor::hashtag_processor;
 
 fn main() {
-  const NUM_CHANNELS: usize = 2;
   const NUM_PROCESSORS: usize = 4;
 
-  let mut processors : Vec<Vec<BChannel<i32>>>= Vec::with_capacity(NUM_PROCESSORS);
-  for _ in 0..NUM_PROCESSORS {
-    processors.push(Vec::with_capacity(2));
-  }
-
-  for i in 0..2 {
-    let mut bchannels : Vec<BChannel<i32>> = BChannel::new(NUM_CHANNELS);
-    processors[2*i].push(std::mem::replace(&mut bchannels[0], BChannel::empty()));
-    processors[2*i+1].push(std::mem::replace(&mut bchannels[1], BChannel::empty()));
-  }
-  
-  for j in 0..2 {
-    let mut bchannels : Vec<BChannel<i32>> = BChannel::new(NUM_CHANNELS);
-    processors[j].push(std::mem::replace(&mut bchannels[0], BChannel::empty()));
-    processors[2+j].push(std::mem::replace(&mut bchannels[1], BChannel::empty()));
-  }
+  let mut processors : Vec<Vec<BChannel<i32>>> = hashtag_processor(2, 2);
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   let (main_tx, main_rx) = mpsc::channel();
@@ -33,8 +19,8 @@ fn main() {
     ];
 
   let b_matrix: Vec<Vec<i32>> = vec![
-        vec![5, 6],
-        vec![7, 8],
+        vec![1, 2],
+        vec![3, 4],
     ];
 
   for j in 0..2 {
