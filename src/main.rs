@@ -1,91 +1,88 @@
-use std::fmt::Display;
-use std::thread;
-use std::sync::mpsc::{self, RecvError};
-use std::sync::{Arc, Mutex};
+use std::{thread, sync::mpsc};
 
-struct BChannel<T : Clone + Display> {
-   rx : mpsc::Receiver<T>,
-   txs : Vec<mpsc::Sender<T>>,
-   brlock : Arc<Mutex<i32>>,
-}
-
-impl<T : Clone + Display> BChannel<T> {
-    fn send(&self, data : T)  -> () {
-        let cloned_senders = self.txs.clone();
-        let l = self.brlock.lock();
-        for tx in cloned_senders {
-            tx.send(data.clone()).unwrap();
-        }
-    }
-
-    fn recv(&self) -> Result<T, RecvError> {
-        self.rx.recv()
-    }
-
-    fn new(n : usize) -> Vec<BChannel<T>> {
-        let mut txs : Vec<mpsc::Sender<T>> = Vec::with_capacity(n);
-        let mut rxs : Vec<mpsc::Receiver<T>> = Vec::with_capacity(n);
-
-        for _ in 0..n {
-            let (tx, rx) = mpsc::channel();
-            txs.push(tx);
-            rxs.push(rx);
-        }
-
-        let block = Arc::new(Mutex::new(0));
-
-        let mut bchannels = Vec::with_capacity(n);
-
-        for i in 0..n {
-            bchannels.push(BChannel {
-                rx : std::mem::replace(&mut rxs[i], mpsc::channel().1,) ,
-                txs : txs.clone(),
-                brlock : Arc::clone(&block),
-            })
-        }
-
-        return bchannels;
-    }
-
-    fn empty() -> BChannel<T> {
-        BChannel {
-            rx : mpsc::channel().1,
-            txs : Vec::with_capacity(0),
-            brlock : Arc::new(Mutex::new(0)),
-        }
-    }
-}
-
+mod broadcast;
+use broadcast::BChannel;
 
 fn main() {
-    const NUM_CHANNELS: usize = 4;
+  const NUM_CHANNELS: usize = 2;
+  const NUM_PROCESSORS: usize = 4;
 
-    let mut bchannels = BChannel::new(NUM_CHANNELS);
-    let mut handles = Vec::with_capacity(NUM_CHANNELS);
+  let mut processors : Vec<Vec<BChannel<i32>>>= Vec::with_capacity(NUM_PROCESSORS);
+  for _ in 0..NUM_PROCESSORS {
+    processors.push(Vec::with_capacity(2));
+  }
 
-    for i in 0..NUM_CHANNELS {
-        let bchannel: BChannel<String> = 
-            std::mem::replace(&mut bchannels[i], BChannel::empty()); 
+  for i in 0..2 {
+    let mut bchannels : Vec<BChannel<i32>> = BChannel::new(NUM_CHANNELS);
+    processors[2*i].push(std::mem::replace(&mut bchannels[0], BChannel::empty()));
+    processors[2*i+1].push(std::mem::replace(&mut bchannels[1], BChannel::empty()));
+  }
+  
+  for j in 0..2 {
+    let mut bchannels : Vec<BChannel<i32>> = BChannel::new(NUM_CHANNELS);
+    processors[j].push(std::mem::replace(&mut bchannels[0], BChannel::empty()));
+    processors[2+j].push(std::mem::replace(&mut bchannels[1], BChannel::empty()));
+  }
 
-        
-        let handle = thread::spawn(move || {
-            let val = format!("{}", i);
-            bchannel.send(String::from(val));
-            loop {
-                match bchannel.recv() {
-                    Ok(received) => {
-                        println!("{i} received: {}", received);
-                    }
-                    Err(_) => {
-                        println!("Channel closed");
-                    }
-                }
-            }
-        });
-        handles.push(handle);
+  let mut handles = Vec::with_capacity(NUM_PROCESSORS);
+  let (main_tx, main_rx) = mpsc::channel();
+
+  let a_matrix: Vec<Vec<i32>> = vec![
+        vec![1, 2],
+        vec![3, 4],
+    ];
+
+  let b_matrix: Vec<Vec<i32>> = vec![
+        vec![5, 6],
+        vec![7, 8],
+    ];
+
+  for j in 0..2 {
+    for i in 0..2 {
+      let mut bchannels = processors.pop().unwrap();
+      let col_bchannel = bchannels.pop().unwrap();
+      let row_bchannel = bchannels.pop().unwrap();
+      
+      let a = a_matrix[j][i];
+      let b = b_matrix[j][i];
+      
+      let tx = main_tx.clone();
+
+      let handle = thread::spawn(move || {
+        let mut c = 0;
+        for iter in 0..2 { 
+          if i == iter {
+            row_bchannel.send(a.clone());
+          }
+          if j == iter {
+            col_bchannel.send(b.clone());
+          }
+
+          let received_a = row_bchannel.recv().unwrap();
+          let received_b = col_bchannel.recv().unwrap();
+
+          c += received_a * received_b; 
+        }
+        tx.send((i, j, c)).unwrap();
+      });
+      handles.push(handle);
     }
+  }
 
-    for handle in handles {
-        handle.join().unwrap();
-    }
+  drop(main_tx);
+
+  let mut c_matrix: Vec<Vec<i32>> = vec![
+    vec![0, 0],
+    vec![0, 0],
+  ];
+  for (i, j, c)  in main_rx {
+    c_matrix[j][i] = c;
+  }
+
+  dbg!(c_matrix);
+
+  for handle in handles {
+    handle.join().unwrap();
+  }
+
 }
