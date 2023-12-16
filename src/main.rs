@@ -1,5 +1,5 @@
 use std::{thread, sync::mpsc};
-use std::fmt::Display;
+use std::fmt::{Display,Formatter,Result};
 
 mod broadcast;
 mod processor;
@@ -13,54 +13,86 @@ pub struct ProcessorInfo<T : Clone + Display> {
   col_broadcast : BChannel<T>,
 }
 
-fn thread_matrix_mult(a : i32, b : i32, dim : usize, p_info : &ProcessorInfo<i32>) -> i32 {
-  let mut c = 0;
+#[derive(Clone)]
+struct Msg {
+  w : i32,
+  p : i32,
+}
+
+impl Display for Msg {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "({}, {})", self.w, self.p)
+    }
+}
+
+fn thread_matrix_mult(w : i32, p : i32, dim : usize, p_info : &ProcessorInfo<Msg>) -> Msg {
+  let mut next_w = w;
+  let mut next_p = p;
   for iter in 0..dim {
+    let m = Msg {
+      w,
+      p
+    };
     if p_info.row == iter {
-      p_info.row_broadcast.send(a.clone());
+      p_info.row_broadcast.send(m.clone());
     }
     if p_info.col == iter {
-      p_info.col_broadcast.send(b.clone());
+      p_info.col_broadcast.send(m.clone());
     }
     let received_a = p_info.row_broadcast.recv().unwrap();
     let received_b = p_info.col_broadcast.recv().unwrap();
 
-    c += received_a * received_b; 
+    if received_a.w != -1 && received_b.w != -1 && ( next_w == -1 || received_a.w + received_b.w < next_w ){
+      next_w = received_a.w + received_b.w;
+      next_p = received_b.p;
+    }
   }
-  return c;
+  return Msg {
+    w : next_w,
+    p : next_p
+  }
 }
     
 
 fn main() {
-  const NUM_PROCESSORS: usize = 9;
+  let p_matrix: Vec<Vec<i32>> = vec![
+        vec![1,1,1,1,5,6,7],
+        vec![1,2,3,4,2,6,7],
+        vec![1,2,3,4,5,3,3],
+        vec![1,2,3,4,5,6,4],
+        vec![1,2,3,4,5,6,7],
+        vec![1,6,3,4,5,6,7],
+        vec![1,2,3,4,5,6,7],
+    ];
 
-  let mut processors : Vec<Vec<BChannel<i32>>> = hashtag_processor(3, 3);
+  let w_matrix: Vec<Vec<i32>> = vec![
+        vec![ 0, 6, 2, 3,-1,-1,-1],
+        vec![-1, 0,-1,-1, 1,-1,-1],
+        vec![-1,-1, 0,-1,-1, 2, 1],
+        vec![-1,-1,-1, 0,-1,-1, 2],
+        vec![-1,-1,-1,-1, 0,-1,-1],
+        vec![-1, 1,-1,-1,-1, 0,-1],
+        vec![-1,-1,-1,-1,-1,-1, 0],
+    ];
 
-  let mut handles = Vec::with_capacity(NUM_PROCESSORS);
+  let num_processors: usize = p_matrix.len() * w_matrix.len();
+
+  let mut processors : Vec<Vec<BChannel<Msg>>> = hashtag_processor(p_matrix.len(), p_matrix.len());
+
+  let mut handles = Vec::with_capacity(num_processors);
   let (main_tx, main_rx) = mpsc::channel();
 
-  let a_matrix: Vec<Vec<i32>> = vec![
-        vec![1, 2, 3],
-        vec![4, 5, 6],
-        vec![7, 8, 9],
-    ];
 
-  let b_matrix: Vec<Vec<i32>> = vec![
-        vec![1, 2, 3],
-        vec![4, 5, 6],
-        vec![7, 8, 9],
-    ];
-
-  let n = b_matrix.len();
+  let n = w_matrix.len();
   for j in 0..n {
     for i in 0..n {
       let mut bchannels = processors.pop().unwrap();
       let col_bchannel = bchannels.pop().unwrap();
       let row_bchannel = bchannels.pop().unwrap();
-      let dim = b_matrix.len();
+      let dim = p_matrix.len();
       
-      let a = a_matrix[j][i];
-      let b = b_matrix[j][i];
+      let w = w_matrix[j][i];
+      let p = p_matrix[j][i];
       
       let tx = main_tx.clone();
 
@@ -71,7 +103,7 @@ fn main() {
           row_broadcast: row_bchannel, 
           col_broadcast: col_bchannel
         };
-        let c = thread_matrix_mult(a, b, dim, &p_info);
+        let c = thread_matrix_mult(w, p, dim, &p_info);
         tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -80,16 +112,20 @@ fn main() {
 
   drop(main_tx);
 
-  let mut c_matrix: Vec<Vec<i32>> = vec![
-    vec![0, 0, 0],
-    vec![0, 0, 0],
-    vec![0, 0, 0],
+  let mut next_w_matrix: Vec<Vec<i32>> = vec![
+    vec![1,1,1,1,5,6,7],
+    vec![1,2,3,4,2,6,7],
+    vec![1,2,3,4,5,3,3],
+    vec![1,2,3,4,5,6,4],
+    vec![1,2,3,4,5,6,7],
+    vec![1,6,3,4,5,6,7],
+    vec![1,2,3,4,5,6,7],
   ];
   for (i, j, c)  in main_rx {
-    c_matrix[j][i] = c;
+    next_w_matrix[j][i] = c.w;
   }
 
-  dbg!(c_matrix);
+  dbg!(next_w_matrix);
 
   for handle in handles {
     handle.join().unwrap();
