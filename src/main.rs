@@ -1,16 +1,26 @@
+use std::collections::VecDeque;
 use std::{thread, sync::mpsc, f64};
 use std::fmt::{Display,Formatter,Result};
 
 mod broadcast;
 mod processor;
 use broadcast::BChannel;
-use processor::hashtag_processor;
+use processor::{hashtag_processor, fox_otto_processor};
+
 
 pub struct ProcessorInfo<T : Clone + Display> {
   row : usize,
   col : usize,
   row_broadcast : BChannel<T>,
   col_broadcast : BChannel<T>,
+}
+
+pub struct FoxOttoProcessorInfo<T : Clone + Display> {
+  row : usize,
+  col : usize,
+  row_broadcast : BChannel<T>,
+  tx : mpsc::Sender<T>,
+  rx : mpsc::Receiver<T>,
 }
 
 #[derive(Clone)]
@@ -45,6 +55,25 @@ fn thread_matrix_mult(m : Msg, dim : usize, p_info : &ProcessorInfo<Msg>) -> Msg
   return next_m;
 }
     
+fn fox_otto_matrix_mult(m : Msg, dim : usize, p_info : &FoxOttoProcessorInfo<Msg>) -> Msg {
+  let mut next_m = m.clone();
+  let mut curr_b = m.clone();
+  for iter in 0..dim {
+    if p_info.row == (( iter + p_info.col ) % dim ) {
+      p_info.row_broadcast.send(m.clone());
+    }
+    let received_a = p_info.row_broadcast.recv().unwrap();
+
+    if received_a.w != -1 && curr_b.w != -1 && ( next_m.w == -1 || received_a.w + curr_b.w < next_m.w ){
+      next_m.w = received_a.w + curr_b.w;
+      next_m.p = curr_b.p;
+    }
+
+    let _ = p_info.tx.send(curr_b);
+    curr_b = p_info.rx.recv().unwrap();
+  }
+  return next_m;
+}
 
 fn main() {
   // P matrix
@@ -78,7 +107,7 @@ fn main() {
   let num_processors: usize = dim * dim;
 
   // Messaging channels for each thread
-  let mut processors : Vec<Vec<BChannel<Msg>>> = hashtag_processor(dim, dim);
+  let mut processors : VecDeque<(BChannel<Msg>, mpsc::Sender<Msg>, mpsc::Receiver<Msg>)> = VecDeque::from(fox_otto_processor(dim, dim));
 
   let mut handles = Vec::with_capacity(num_processors);
   // Message channel to return values from each thread
@@ -88,24 +117,23 @@ fn main() {
   for j in 0..dim {
     for i in 0..dim {
       // Assign each thread its corresponding channels
-      let mut bchannels = processors.pop().unwrap();
-      let col_bchannel = bchannels.pop().unwrap();
-      let row_bchannel = bchannels.pop().unwrap();
+      let (row_broadcast, tx, rx) = processors.pop_front().unwrap();
 
       // Assign each threads matrix component
       let w = w_matrix[j][i];
       let p = p_matrix[j][i];
       
       // Sender for returning the results
-      let tx = main_tx.clone();
+      let result_tx = main_tx.clone();
 
       let handle = thread::spawn(move || {
         // Processor information
-        let p_info = ProcessorInfo { 
+        let p_info = FoxOttoProcessorInfo { 
           row: i,
           col: j, 
-          row_broadcast: row_bchannel, 
-          col_broadcast: col_bchannel
+          row_broadcast, 
+          tx,
+          rx
         };
         // Msg struct
         let mut m = Msg {
@@ -114,12 +142,12 @@ fn main() {
         };
         // Square the W matrix and update P
         for _ in 0..iterations {
-          m = thread_matrix_mult(m, dim, &p_info);
+          m = fox_otto_matrix_mult(m, dim, &p_info);
         }
         // Return the final values for the W and P matrix as well as the
         // index of the core so that main thread knows the values corresponding
         // location
-        tx.send((i, j, m)).unwrap();
+        result_tx.send((i, j, m)).unwrap();
       });
       handles.push(handle);
     }
@@ -155,6 +183,8 @@ fn main() {
   }
 
   dbg!(next_w_matrix);
+  println!("-----------------------------");
+  dbg!(next_p_matrix);
 
   for handle in handles {
     handle.join().unwrap();
