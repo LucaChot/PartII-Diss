@@ -4,6 +4,7 @@ use std::{thread, sync::mpsc, f64};
 mod broadcast;
 mod processor;
 mod matrix_multiplication;
+mod graph_optimisation;
 
 use broadcast::BChannel;
 use processor::fox_otto_processor;
