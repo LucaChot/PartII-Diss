@@ -1,14 +1,16 @@
-use std::fmt::Display;
 use std::sync::mpsc::{self, RecvError};
 use std::sync::{Arc, Mutex};
+use std::fmt::Debug;
 
-pub struct BChannel<T : Clone + Display> {
+pub trait Sendable : Clone + Debug{}
+
+pub struct BChannel<T : Sendable> {
   rx : mpsc::Receiver<T>,
   txs : Vec<mpsc::Sender<T>>,
   brlock : Arc<Mutex<i32>>,
 }
 
-impl<T : Clone + Display> BChannel<T> {
+impl<T : Sendable> BChannel<T> {
   pub fn send(&self, data : T)  -> () {
     let cloned_senders = self.txs.clone();
     let _ = self.brlock.lock();

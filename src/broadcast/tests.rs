@@ -1,10 +1,14 @@
 use std::{thread, sync::mpsc};
 
-use super::BChannel;
+use super::{BChannel, Sendable};
+
+impl Sendable for i32 {}
+impl Sendable for String {}
 
 #[test]
 fn test_correctly_receive_serial(){
   let mut bchannels = BChannel::new(2);
+
 
   let bchannel0: BChannel<i32> = 
     std::mem::replace(&mut bchannels[0], BChannel::empty()); 
