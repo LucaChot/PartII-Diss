@@ -18,7 +18,7 @@ fn main() {
   const NUM_PROCESSORS: usize =  PROCESSOR_DIM.0 * PROCESSOR_DIM.1;
   
   // P matrix
-  let p_matrix: Vec<Vec<i32>> = vec![
+  let p_matrix: Vec<Vec<usize>> = vec![
     vec![1,1,1,1,5,6,7],
     vec![1,2,3,4,2,6,7],
     vec![1,2,3,4,5,3,3],
@@ -29,7 +29,7 @@ fn main() {
   ];
 
   // W matrix
-  let w_matrix: Vec<Vec<i32>> = vec![
+  let w_matrix: Vec<Vec<isize>> = vec![
     vec![ 0, 6, 2, 3,-1,-1,-1],
     vec![-1, 0,-1,-1, 1,-1,-1],
     vec![-1,-1, 0,-1,-1, 2, 1],
@@ -97,7 +97,7 @@ fn main() {
 
   let submatrices_dim = get_submatrices_dim(PROCESSOR_DIM, (dim,dim));
 
-  let mut next_w_matrix: Vec<Vec<i32>> = vec![
+  let mut next_w_matrix: Vec<Vec<isize>> = vec![
     vec![1,1,1,1,5,6,7],
     vec![1,2,3,4,2,6,7],
     vec![1,2,3,4,5,3,3],
@@ -106,7 +106,7 @@ fn main() {
     vec![1,6,3,4,5,6,7],
     vec![1,2,3,4,5,6,7],
   ];
-  let mut next_p_matrix: Vec<Vec<i32>> = vec![
+  let mut next_p_matrix: Vec<Vec<usize>> = vec![
     vec![1,1,1,1,5,6,7],
     vec![1,2,3,4,2,6,7],
     vec![1,2,3,4,5,3,3],
