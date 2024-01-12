@@ -3,8 +3,8 @@ use crate::broadcast::Sendable;
 
 #[derive(Clone,Debug)]
 pub struct Msg {
-  w : i32,
-  p : i32,
+  w : isize,
+  p : usize,
 }
 
 impl Display for Msg {
@@ -14,18 +14,18 @@ impl Display for Msg {
 }
 
 impl Msg {
-  pub fn new(w : i32, p : i32) -> Msg {
+  pub fn new(w : isize, p : usize) -> Msg {
     return Msg {
       w,
       p,
     }
   }
 
-  pub fn get_w(&self) -> i32 {
+  pub fn get_w(&self) -> isize {
     return self.w;
   }
 
-  pub fn get_p(&self) -> i32 {
+  pub fn get_p(&self) -> usize {
     return self.p;
   }
 }
