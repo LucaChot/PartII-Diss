@@ -65,36 +65,23 @@ pub fn serial_matrix_multiplication<T : Clone + Debug>(matrix_a : &Matrix<T>, ma
 }
 
 pub mod hash {
-  use crate::broadcast::{BChannel, Sendable};
+  use crate::broadcast::Sendable;
+  use crate::processor::CoreInfo;
   use super::serial_matrix_multiplication;
   pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
 
-  pub struct ProcessorInfo<T : Sendable> {
-    row : usize,
-    col : usize,
-    row_broadcast : BChannel<T>,
-    col_broadcast : BChannel<T>,
-  }
-
-  impl<T : Sendable> ProcessorInfo<T> {
-    pub fn new(row : usize, col : usize, row_broadcast : BChannel<T>, col_broadcast : BChannel<T>)
-      -> ProcessorInfo<T> {
-      ProcessorInfo { row, col, row_broadcast, col_broadcast}
-    }
-  }
-
-  pub fn thread_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
-                            iteration : usize, p_info : &ProcessorInfo<Matrix<T>>, func : fn(T,T,T)->T)
+  pub fn hash_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
+                            iteration : usize, core_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T)
     -> Matrix<T> {
     for iter in 0..iteration {
-      if p_info.col == iter {
-        p_info.row_broadcast.send(matrix_a.clone());
+      if core_info.col == iter {
+        core_info.core_comm.row.send(matrix_a.clone());
       }
-      if p_info.row == iter {
-        p_info.col_broadcast.send(matrix_b.clone());
+      if core_info.row == iter {
+        core_info.core_comm.col.send(matrix_b.clone());
       }
-      let received_a = p_info.row_broadcast.recv().unwrap();
-      let received_b = p_info.col_broadcast.recv().unwrap();
+      let received_a = core_info.core_comm.row.recv().unwrap();
+      let received_b = core_info.core_comm.col.recv().unwrap();
 
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
     }
@@ -104,41 +91,26 @@ pub mod hash {
 }
 
 pub mod fox_otto {
-  use std::sync::mpsc;
-  use crate::broadcast::{BChannel, Sendable};
+  use crate::broadcast::Sendable;
+  use crate::processor::CoreInfo;
   use super::serial_matrix_multiplication;
   pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
 
-  pub struct FoxOttoProcessorInfo<T : Sendable> {
-    row : usize,
-    col : usize,
-    row_broadcast : BChannel<T>,
-    tx : mpsc::Sender<T>,
-    rx : mpsc::Receiver<T>,
-  }
-
-  impl<T : Sendable> FoxOttoProcessorInfo<T> {
-    pub fn new(row : usize, col : usize, row_broadcast : BChannel<T>, tx : mpsc::Sender<T>, rx : mpsc::Receiver<T>)
-      -> FoxOttoProcessorInfo<T> {
-      FoxOttoProcessorInfo { row, col, row_broadcast, tx, rx}
-    }
-  }
-
   pub fn fox_otto_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
-                                            iterations : usize, p_info : &FoxOttoProcessorInfo<Matrix<T>>, func : fn(T,T,T)->T) 
+                                            iterations : usize, p_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T) 
     -> Matrix<T> {
     let mut received_b = matrix_b;
 
     for iter in 0..iterations {
       if iter == (( iterations + p_info.col - p_info.row) % iterations ) {
-        p_info.row_broadcast.send(matrix_a.clone());
+        p_info.core_comm.row.send(matrix_a.clone());
       }
-      let received_a = p_info.row_broadcast.recv().unwrap();
+      let received_a = p_info.core_comm.row.recv().unwrap();
       
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
       
-      let _ = p_info.tx.send(received_b);
-      received_b = p_info.rx.recv().unwrap();
+      let _ = p_info.core_comm.up.send(received_b);
+      received_b = p_info.core_comm.down.recv().unwrap();
     }
     return matrix_c;
   }

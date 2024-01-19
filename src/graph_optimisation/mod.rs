@@ -15,5 +15,3 @@ impl Val2Node {
   }
 }
 
-#[cfg(test)]
-mod tests;

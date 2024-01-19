@@ -12,9 +12,8 @@ pub struct BChannel<T : Sendable> {
 
 impl<T : Sendable> BChannel<T> {
   pub fn send(&self, data : T)  -> () {
-    let cloned_senders = self.txs.clone();
     let _ = self.brlock.lock();
-    for tx in cloned_senders {
+    for tx in &self.txs {
       tx.send(data.clone()).unwrap();
     }
   }
@@ -57,5 +56,31 @@ impl<T : Sendable> BChannel<T> {
   }
 }
 
+pub struct Channel<T : Sendable> {
+  rx : mpsc::Receiver<T>,
+  tx : mpsc::Sender<T>,
+}
+
+impl<T : Sendable> Channel<T> {
+  pub fn send(&self, data : T)  -> () {
+    self.tx.send(data.clone()).unwrap();
+  }
+
+  pub fn recv(&self) -> Result<T, RecvError> {
+    self.rx.recv()
+  }
+
+  pub fn new() -> (Channel<T>, Channel<T>) {
+    let (tx1, rx1) = mpsc::channel();
+    let (tx2, rx2) = mpsc::channel();
+
+    (Channel { tx: tx1, rx : rx2 }, Channel { tx : tx2, rx : rx1 })
+  }
+
+  pub fn empty() -> Channel<T> {
+    let (tx, rx) = mpsc::channel();
+    Channel { tx, rx }
+  }
+}
 #[cfg(test)]
 mod tests;

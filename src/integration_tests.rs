@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::{thread, sync::mpsc};
 
-use super::broadcast::{Sendable, BChannel};
-use super::processor::{fox_otto_processor, hashtag_processor};
+use super::broadcast::Sendable;
+use super::processor::{general_processor, CoreInfo};
 use super::matrix_multiplication::fox_otto::*;
 use super::matrix_multiplication::hash::*;
 use crate::graph_optimisation::reduction::remove_val2_nodes;
@@ -35,8 +35,8 @@ fn test_fox_otto_matrix_mult() {
   
   let mut matrix_c : Matrix<isize> = vec![vec![0; b_cols]; a_rows];
 
-  let mut processors : VecDeque<(BChannel<Matrix<_>>, mpsc::Sender<Matrix<_>>, mpsc::Receiver<Matrix<_>>)> 
-    = VecDeque::from(fox_otto_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+  let mut cores_info : VecDeque<CoreInfo<Matrix<isize>>> 
+    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   
@@ -54,18 +54,16 @@ fn test_fox_otto_matrix_mult() {
 
   for i in 0..PROCESSOR_DIM.0 {
     for j in 0..PROCESSOR_DIM.1 {
-      let (row_broadcast, tx, rx) = processors.pop_front().unwrap();
+      let core_info = cores_info.pop_front().unwrap();
       
       let result_tx = main_tx.clone();
-
-      let p_info = FoxOttoProcessorInfo::new(i, j, row_broadcast, tx, rx);
 
       let a = a_submatrices.pop_front().unwrap();
       let b = b_submatrices.pop_front().unwrap();
       let mut c = c_submatrices.pop_front().unwrap();
 
       let handle = thread::spawn(move || {
-        c = fox_otto_matrix_mult(a, b, c, PROCESSOR_DIM.0, &p_info, singleton_matrix_multiplication);
+        c = fox_otto_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -123,8 +121,8 @@ fn test_hash_matrix_mult() {
   
   let mut matrix_c : Matrix<isize> = vec![vec![0; b_cols]; a_rows];
 
-  let mut processors : VecDeque<Vec<BChannel<Matrix<_>>>> 
-    = VecDeque::from(hashtag_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+  let mut cores_info : VecDeque<CoreInfo<Matrix<isize>>> 
+    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   
@@ -142,20 +140,16 @@ fn test_hash_matrix_mult() {
 
   for i in 0..PROCESSOR_DIM.0 {
     for j in 0..PROCESSOR_DIM.1 {
-      let mut broadcasts = processors.pop_front().unwrap();
-      let col_broadcast = broadcasts.pop().unwrap();
-      let row_broadcast = broadcasts.pop().unwrap();
-      
+      let core_info = cores_info.pop_front().unwrap();
       let result_tx = main_tx.clone();
 
-      let p_info = ProcessorInfo::new(i, j, row_broadcast, col_broadcast);
 
       let a = a_submatrices.pop_front().unwrap();
       let b = b_submatrices.pop_front().unwrap();
       let mut c = c_submatrices.pop_front().unwrap();
 
       let handle = thread::spawn(move || {
-        c = thread_matrix_mult(a, b, c, PROCESSOR_DIM.0, &p_info, singleton_matrix_multiplication);
+        c = hash_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -234,8 +228,8 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   // Thread per element in matrix
 
   // Messaging channels for each thread
-  let mut processors : VecDeque<(BChannel<Matrix<Msg>>, mpsc::Sender<Matrix<Msg>>, mpsc::Receiver<Matrix<Msg>>)> 
-    = VecDeque::from(fox_otto_processor::<Matrix<Msg>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+  let mut cores_info : VecDeque<CoreInfo<Matrix<Msg>>> 
+    = VecDeque::from(general_processor::<Matrix<Msg>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   // Message channel to return values from each thread
@@ -248,12 +242,9 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   for i in 0..PROCESSOR_DIM.0 {
     for j in 0..PROCESSOR_DIM.1 {
       // Assign each thread its corresponding channels
-      let (row_broadcast, tx, rx) = processors.pop_front().unwrap();
+      let core_info = cores_info.pop_front().unwrap();
       // Sender for returning the results
       let result_tx = main_tx.clone();
-
-      // Processor information
-      let p_info = FoxOttoProcessorInfo::new(i, j, row_broadcast, tx, rx);
 
       // Msg struct
       // Assign each threads matrix component
@@ -262,7 +253,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
       let handle = thread::spawn(move || {
         // Square the W matrix and update P
         for _ in 0..iterations {
-          m = fox_otto_matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &p_info, singleton_pred_matrix_multiplication);
+          m = fox_otto_matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &core_info, singleton_pred_matrix_multiplication);
         }
         // Return the final values for the W and P matrix as well as the
         // index of the core so that main thread knows the values corresponding
