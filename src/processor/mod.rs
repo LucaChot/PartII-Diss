@@ -1,6 +1,34 @@
-use std::{fmt::Display, sync::mpsc::{Receiver, Sender, self}};
-use crate::broadcast::{BChannel, Sendable};
+use crate::broadcast::{BChannel, Sendable, Channel};
 
+pub struct CoreComm<T:Sendable>{
+  pub left : Channel<T>,
+  pub right : Channel<T>,
+  pub up : Channel<T>,
+  pub down : Channel<T>,
+  pub row : BChannel<T>,
+  pub col : BChannel<T>,
+}
+
+impl<T : Sendable> CoreComm<T> {
+  fn new() -> CoreComm<T> {
+    CoreComm { 
+      left: Channel::empty(),
+      right: Channel::empty(),
+      up: Channel::empty(),
+      down: Channel::empty(),
+      row: BChannel::empty(),
+      col: BChannel::empty()
+    }
+  } 
+}
+
+pub struct CoreInfo<T : Sendable> {
+  pub row : usize,
+  pub col : usize,
+  pub core_comm : CoreComm<T>,
+} 
+
+// TODO : Update comment
 /// This function returns a 2D Vec of BChannel<T> representing the broadcast 
 /// channels for a hashtag processor (only vertical and horizontal broadcasts)
 ///
@@ -12,53 +40,40 @@ use crate::broadcast::{BChannel, Sendable};
 /// Returns Vec<Vec<BCHannel<T>>> which has out length equal to the number of 
 /// cores in the processor and inner length equal to the number of channels 
 /// accessible by the corresponding core. 
-pub fn hashtag_processor<T: Sendable>(rows : usize, cols : usize) -> Vec<Vec<BChannel<T>>> {
-  let num_processors = cols * rows;
-  let mut processors : Vec<Vec<BChannel<T>>>= Vec::with_capacity(num_processors);
-  for _ in 0..num_processors {
-    processors.push(Vec::with_capacity(2));
+pub fn general_processor<T: Sendable>(rows : usize, cols : usize) -> Vec<CoreInfo<T>> {
+  let num_cores = cols * rows;
+  let mut cores : Vec<CoreInfo<T>> = Vec::with_capacity(num_cores);
+  for row in 0..rows {
+    for col in 0..cols {
+      cores.push(CoreInfo{ row, col, core_comm : CoreComm::new() });
+    }
   }
 
   for i in 0..rows {
     let mut bchannels : Vec<BChannel<T>> = BChannel::new(cols);
     for step in 0..cols {
-      processors[rows * i + step].push(std::mem::replace(&mut bchannels[step], BChannel::empty()));
+      cores[rows * i + step].core_comm.row = bchannels.pop().unwrap();
     }
   }
-  
-  for j in 0..cols {
-    let mut bchannels : Vec<BChannel<T>> = BChannel::new(rows);
+
+  for i in 0..cols {
+    let mut bchannels : Vec<BChannel<T>> = BChannel::new(cols);
     for step in 0..rows {
-      processors[step * cols + j].push(std::mem::replace(&mut bchannels[step], BChannel::empty()));
-    }
-  }
-  return processors
-}
-
-pub fn fox_otto_processor<T: Sendable>(rows : usize, cols : usize) -> Vec<(BChannel<T>, Sender<T>, Receiver<T>)> {
-  let num_processors = cols * rows;
-  let mut processors : Vec<(BChannel<T>, Sender<T>, Receiver<T>)> = Vec::with_capacity(num_processors);
-  for _ in 0..num_processors {
-    let (tx, rx) = mpsc::channel();
-    processors.push((
-      BChannel::empty(),
-      tx,
-      rx));
-  }
-
-  for i in 0..rows {
-    let mut bchannels : Vec<BChannel<T>> = BChannel::new(cols);
-    for step in 0..cols {
-      processors[rows * i + step].0 = std::mem::replace(&mut bchannels[step], BChannel::empty());
+      cores[rows * step + i].core_comm.col = bchannels.pop().unwrap();
     }
   }
   
-  for j in 0..num_processors {
-    let (tx, mut rx) = mpsc::channel();
-    processors[j].1 = tx.clone();
-    processors[( num_processors + j - cols ) % num_processors].2 = std::mem::replace(&mut rx, mpsc::channel().1); 
+  for i in 0..num_cores {
+    let (up, down) = Channel::new();
+    cores[i].core_comm.up = up;
+    cores[( num_cores + i - cols ) % num_cores].core_comm.down = down; 
+
+    let (right, left) = Channel::new();
+    cores[i].core_comm.right = right;
+    cores[i - ( i % cols ) + ( (i +  1) % cols )].core_comm.left = left; 
   }
-  return processors
+  
+  return cores
 }
 
 /// This function returns a Vec containing the dimensions of the submatrices to 

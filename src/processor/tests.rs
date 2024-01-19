@@ -1,78 +1,65 @@
-use crate::processor::fox_otto_processor;
-
 use super::*;
 
-// ------------------------------------------------------------
 #[test]
-fn hashtag_correct_length(){
+fn general_correct_length(){
 
-  let bchannels = hashtag_processor::<i32>(2, 2);
+  let bchannels = general_processor::<i32>(2, 2);
   assert_eq!(bchannels.len(), 4);
 }
 
 #[test]
-fn hashtag_correct_connection(){
-  let bchannels = hashtag_processor::<i32>(2, 2);
+fn general_correct_connection(){
+  let cores = general_processor::<i32>(2, 2);
   // Check that horizontal broadcast works
-  bchannels[0][0].send(1);
-  assert_eq!(bchannels[0][0].recv().unwrap(), 1);
-  assert_eq!(bchannels[1][0].recv().unwrap(), 1);
+  cores[0].core_comm.up.send(1);
+  assert_eq!(cores[2].core_comm.down.recv().unwrap(), 1);
 
-  bchannels[2][0].send(2);
-  assert_eq!(bchannels[2][0].recv().unwrap(), 2);
-  assert_eq!(bchannels[3][0].recv().unwrap(), 2);
+  cores[0].core_comm.right.send(2);
+  assert_eq!(cores[1].core_comm.left.recv().unwrap(), 2);
 
   // Check that vertical broadcast works
-  bchannels[0][1].send(3);
-  assert_eq!(bchannels[0][1].recv().unwrap(), 3);
-  assert_eq!(bchannels[2][1].recv().unwrap(), 3);
+  cores[0].core_comm.down.send(3);
+  assert_eq!(cores[2].core_comm.up.recv().unwrap(), 3);
 
-  bchannels[1][1].send(4);
-  assert_eq!(bchannels[1][1].recv().unwrap(), 4);
-  assert_eq!(bchannels[3][1].recv().unwrap(), 4);
-  
-}
+  cores[0].core_comm.left.send(4);
+  assert_eq!(cores[1].core_comm.right.recv().unwrap(), 4);
 
-// ------------------------------------------------------------
+  cores[3].core_comm.up.send(1);
+  assert_eq!(cores[1].core_comm.down.recv().unwrap(), 1);
 
-#[test]
-fn fox_otto_correct_length(){
+  cores[3].core_comm.right.send(2);
+  assert_eq!(cores[2].core_comm.left.recv().unwrap(), 2);
 
-  let bchannels = fox_otto_processor::<i32>(2, 2);
-  assert_eq!(bchannels.len(), 4);
-}
+  // Check that vertical broadcast works
+  cores[3].core_comm.down.send(3);
+  assert_eq!(cores[1].core_comm.up.recv().unwrap(), 3);
 
-#[test]
-fn fox_otto_correct_connection(){
-  let bchannels = fox_otto_processor::<i32>(2, 2);
-  // Check that horizontal broadcast works
-  let _ = bchannels[0].1.send(0);
-  assert_eq!(bchannels[2].2.recv().unwrap(), 0);
-
-  let _ = bchannels[1].1.send(1);
-  assert_eq!(bchannels[3].2.recv().unwrap(), 1);
-
-  let _ = bchannels[2].1.send(2);
-  assert_eq!(bchannels[0].2.recv().unwrap(), 2);
-
-  let _ = bchannels[3].1.send(3);
-  assert_eq!(bchannels[1].2.recv().unwrap(), 3);
+  cores[3].core_comm.left.send(4);
+  assert_eq!(cores[2].core_comm.right.recv().unwrap(), 4);
 }
 
 #[test]
-fn fox_otto_correct_broadcast(){
-  let bchannels = fox_otto_processor::<i32>(2, 2);
+fn general_correct_broadcast(){
+  let cores = general_processor::<i32>(2, 2);
 
   // Check that horizontal broadcast works
-  bchannels[0].0.send(0);
-  assert_eq!(bchannels[0].0.recv().unwrap(), 0);
-  assert_eq!(bchannels[1].0.recv().unwrap(), 0);
+  cores[0].core_comm.row.send(0);
+  assert_eq!(cores[0].core_comm.row.recv().unwrap(), 0);
+  assert_eq!(cores[1].core_comm.row.recv().unwrap(), 0);
 
-  bchannels[2].0.send(1);
-  assert_eq!(bchannels[2].0.recv().unwrap(), 1);
-  assert_eq!(bchannels[3].0.recv().unwrap(), 1);
+  cores[3].core_comm.row.send(1);
+  assert_eq!(cores[2].core_comm.row.recv().unwrap(), 1);
+  assert_eq!(cores[3].core_comm.row.recv().unwrap(), 1);
+
+  // Check that vertical broadcast works
+  cores[2].core_comm.col.send(2);
+  assert_eq!(cores[0].core_comm.col.recv().unwrap(), 2);
+  assert_eq!(cores[2].core_comm.col.recv().unwrap(), 2);
+
+  cores[1].core_comm.col.send(3);
+  assert_eq!(cores[1].core_comm.col.recv().unwrap(), 3);
+  assert_eq!(cores[3].core_comm.col.recv().unwrap(), 3);
 }
-
 // ------------------------------------------------------------
 
 #[test]
