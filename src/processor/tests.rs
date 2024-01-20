@@ -3,13 +3,13 @@ use super::*;
 #[test]
 fn general_correct_length(){
 
-  let bchannels = general_processor::<i32>(2, 2);
+  let bchannels = general_processor::<i32>((2, 2));
   assert_eq!(bchannels.len(), 4);
 }
 
 #[test]
 fn general_correct_connection(){
-  let cores = general_processor::<i32>(2, 2);
+  let cores = general_processor::<i32>((2, 2));
   // Check that horizontal broadcast works
   cores[0].core_comm.up.send(1);
   assert_eq!(cores[2].core_comm.down.recv().unwrap(), 1);
@@ -40,7 +40,7 @@ fn general_correct_connection(){
 
 #[test]
 fn general_correct_broadcast(){
-  let cores = general_processor::<i32>(2, 2);
+  let cores = general_processor::<i32>((2, 2));
 
   // Check that horizontal broadcast works
   cores[0].core_comm.row.send(0);

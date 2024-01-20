@@ -47,7 +47,7 @@ pub fn singleton_pred_matrix_multiplication(a : Msg, b : Msg, mut c : Msg) -> Ms
   c
 }
 
-pub fn serial_matrix_multiplication<T : Clone + Debug>(matrix_a : &Matrix<T>, matrix_b : &Matrix<T>, matrix_c : &Matrix<T>, 
+pub fn serial_matrix_multiplication<T : Sendable>(matrix_a : &Matrix<T>, matrix_b : &Matrix<T>, matrix_c : &Matrix<T>, 
                                                f : fn(T,T,T)->T)
 -> Matrix<T>{
   let rows_a = matrix_a.len();
@@ -110,6 +110,59 @@ pub mod fox_otto {
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
       
       let _ = p_info.core_comm.up.send(received_b);
+      received_b = p_info.core_comm.down.recv().unwrap();
+    }
+    return matrix_c;
+  }
+
+}
+
+pub mod cannons {
+  use std::collections::VecDeque;
+
+use crate::broadcast::Sendable;
+  use crate::processor::CoreInfo;
+  use super::serial_matrix_multiplication;
+  pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
+
+  pub fn cannon_setup_a<T : Sendable>(submatrices_a : VecDeque<Matrix<T>>, (rows, cols) : (usize, usize)) 
+    -> VecDeque<Matrix<T>> {
+    let indices : Vec<usize> = (0..rows)
+      .flat_map(|row| (0..cols)
+                .map(|col| row * cols +((cols + col - row) % cols))
+                .collect::<Vec<_>>())
+      .collect();
+    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<T>>>();
+    submatrices_a.into_iter().zip(indices.iter()).map(|(m, &index)| result[index] = m).count();
+
+    return result;
+  }
+
+  pub fn cannon_setup_b<T : Sendable>(submatrices_b : VecDeque<Matrix<T>>, (rows, cols) : (usize, usize)) 
+    -> VecDeque<Matrix<T>> {
+    let indices : Vec<usize> = (0..rows)
+      .flat_map(|row| (0..cols)
+                .map(|col| ((rows + row - col) % rows) * cols + col)
+                .collect::<Vec<_>>())
+      .collect();
+    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<T>>>();
+    submatrices_b.into_iter().zip(indices.iter()).map(|(m, &index)| result[index] = m).count();
+
+    return result;
+  }
+
+  pub fn cannon_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
+                                            iterations : usize, p_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T) 
+    -> Matrix<T> {
+    let mut received_a = matrix_a;
+    let mut received_b = matrix_b;
+
+    for _ in 0..iterations {
+      matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
+      
+      p_info.core_comm.left.send(received_a);
+      p_info.core_comm.up.send(received_b);
+      received_a = p_info.core_comm.right.recv().unwrap();
       received_b = p_info.core_comm.down.recv().unwrap();
     }
     return matrix_c;

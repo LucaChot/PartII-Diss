@@ -5,6 +5,7 @@ use super::broadcast::Sendable;
 use super::processor::{general_processor, CoreInfo};
 use super::matrix_multiplication::fox_otto::*;
 use super::matrix_multiplication::hash::*;
+use super::matrix_multiplication::cannons::*;
 use crate::graph_optimisation::reduction::remove_val2_nodes;
 use crate::graph_optimisation::expansion::*;
 
@@ -36,7 +37,7 @@ fn test_fox_otto_matrix_mult() {
   let mut matrix_c : Matrix<isize> = vec![vec![0; b_cols]; a_rows];
 
   let mut cores_info : VecDeque<CoreInfo<Matrix<isize>>> 
-    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   
@@ -122,7 +123,7 @@ fn test_hash_matrix_mult() {
   let mut matrix_c : Matrix<isize> = vec![vec![0; b_cols]; a_rows];
 
   let mut cores_info : VecDeque<CoreInfo<Matrix<isize>>> 
-    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   
@@ -150,6 +151,96 @@ fn test_hash_matrix_mult() {
 
       let handle = thread::spawn(move || {
         c = hash_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
+        result_tx.send((i, j, c)).unwrap();
+      });
+      handles.push(handle);
+    }
+  }
+  drop(main_tx);
+
+  let submatrices_dim = get_submatrices_dim(PROCESSOR_DIM, (a_rows,b_cols));
+
+  // Assign the final values to the W and P matrix
+  for (i, j, c)  in main_rx {
+    let index = i * PROCESSOR_DIM.1 + j;
+    let submatrix_dim = submatrices_dim[index];
+    for i in 0..submatrix_dim.height {
+      for j in 0..submatrix_dim.width {
+        matrix_c[submatrix_dim.start_row+i][submatrix_dim.start_col+j] = c[i][j];
+      }
+    }
+  }
+
+  dbg!(&matrix_c);
+
+  for handle in handles {
+    handle.join().unwrap();
+  }
+
+  assert_eq!(matrix_c, vec![
+    vec![30,24,18],
+    vec![84,69,54],
+    vec![138,114,90]
+  ]);
+
+}
+
+#[test]
+#[ignore]
+fn test_cannon_matrix_mult() {
+  const PROCESSOR_DIM : (usize,usize) = (2,2);
+  const NUM_PROCESSORS: usize =  PROCESSOR_DIM.0 * PROCESSOR_DIM.1;
+  
+  let matrix_a: Matrix<isize> = vec![
+    vec![1,2,3],
+    vec![4,5,6],
+    vec![7,8,9],
+  ];
+
+  let matrix_b: Matrix<isize> = vec![
+    vec![9,8,7],
+    vec![6,5,4],
+    vec![3,2,1],
+  ];
+
+  let a_rows = matrix_a.len();
+  let b_cols = matrix_b[0].len();
+  
+  let mut matrix_c : Matrix<isize> = vec![vec![0; b_cols]; a_rows];
+
+  let mut cores_info : VecDeque<CoreInfo<Matrix<isize>>> 
+    = VecDeque::from(general_processor::<Matrix<isize>>(PROCESSOR_DIM));
+
+  let mut handles = Vec::with_capacity(NUM_PROCESSORS);
+  
+  let (main_tx, main_rx) = mpsc::channel();
+
+  let mut a_submatrices : VecDeque<Matrix<isize>> = 
+    VecDeque::from(get_submatrices(&matrix_a, PROCESSOR_DIM));
+
+  a_submatrices = cannon_setup_a(a_submatrices, PROCESSOR_DIM);
+
+  let mut b_submatrices : VecDeque<Matrix<isize>> = 
+    VecDeque::from(get_submatrices(&matrix_b, PROCESSOR_DIM));
+
+  b_submatrices = cannon_setup_b(b_submatrices, PROCESSOR_DIM);
+
+  let mut c_submatrices : VecDeque<Matrix<isize>> = 
+    VecDeque::from(get_submatrices(&matrix_c, PROCESSOR_DIM));
+
+
+  for i in 0..PROCESSOR_DIM.0 {
+    for j in 0..PROCESSOR_DIM.1 {
+      let core_info = cores_info.pop_front().unwrap();
+      
+      let result_tx = main_tx.clone();
+
+      let a = a_submatrices.pop_front().unwrap();
+      let b = b_submatrices.pop_front().unwrap();
+      let mut c = c_submatrices.pop_front().unwrap();
+
+      let handle = thread::spawn(move || {
+        c = cannon_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -229,7 +320,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
 
   // Messaging channels for each thread
   let mut cores_info : VecDeque<CoreInfo<Matrix<Msg>>> 
-    = VecDeque::from(general_processor::<Matrix<Msg>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+    = VecDeque::from(general_processor::<Matrix<Msg>>(PROCESSOR_DIM));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   // Message channel to return values from each thread

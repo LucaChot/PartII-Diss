@@ -52,7 +52,7 @@ fn main() {
 
   // Messaging channels for each thread
   let mut cores_info : VecDeque<CoreInfo<Matrix<Msg>>> 
-    = VecDeque::from(general_processor::<Matrix<Msg>>(PROCESSOR_DIM.0, PROCESSOR_DIM.1));
+    = VecDeque::from(general_processor::<Matrix<Msg>>(PROCESSOR_DIM));
 
   let mut handles = Vec::with_capacity(NUM_PROCESSORS);
   // Message channel to return values from each thread
