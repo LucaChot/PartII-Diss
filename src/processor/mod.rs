@@ -40,7 +40,7 @@ pub struct CoreInfo<T : Sendable> {
 /// Returns Vec<Vec<BCHannel<T>>> which has out length equal to the number of 
 /// cores in the processor and inner length equal to the number of channels 
 /// accessible by the corresponding core. 
-pub fn general_processor<T: Sendable>(rows : usize, cols : usize) -> Vec<CoreInfo<T>> {
+pub fn general_processor<T: Sendable>((rows, cols) : (usize,usize)) -> Vec<CoreInfo<T>> {
   let num_cores = cols * rows;
   let mut cores : Vec<CoreInfo<T>> = Vec::with_capacity(num_cores);
   for row in 0..rows {
