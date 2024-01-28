@@ -1,66 +1,5 @@
 use super::*;
 
-#[test]
-fn test_order_linear1(){
-    let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear1.txt").unwrap();
-
-    let edges = sort_val_2(input_file);
-    let edge_order = edges.iter()
-      .map(|edge| (edge.node_a, edge.node_b))
-      .collect::<Vec<(usize, usize)>>();
-
-  assert_eq!(edge_order, vec![(0,1),(1,2),(2,3)]);
-}
-
-#[test]
-fn test_order_linear2(){
-    let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear2.txt").unwrap();
-
-    let edges = sort_val_2(input_file);
-    let edge_order = edges.iter()
-      .map(|edge| (edge.node_a, edge.node_b))
-      .collect::<Vec<(usize, usize)>>();
-
-  assert_eq!(edge_order, vec![(0,1),(1,2),(0,3)]);
-}
-
-#[test]
-fn test_order_linear3(){
-    let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear3.txt").unwrap();
-
-    let edges = sort_val_2(input_file);
-    let edge_order = edges.iter()
-      .map(|edge| (edge.node_a, edge.node_b))
-      .collect::<Vec<(usize, usize)>>();
-
-  assert_eq!(edge_order, vec![(0,3),(1,3),(1,2)]);
-}
-
-#[test]
-fn test_order_cycle(){
-    let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt").unwrap();
-
-    let edges = sort_val_2(input_file);
-    let edge_order = edges.iter()
-      .map(|edge| (edge.node_a, edge.node_b))
-      .collect::<Vec<(usize, usize)>>();
-
-  assert_eq!(edge_order, vec![(0,1),(1,2),(2,4),(3,4),(0,3),(2,6),(0,5)]);
-}
-
-#[test]
-fn test_order_complex(){
-    let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/complex.txt").unwrap();
-
-    let edges = sort_val_2(input_file);
-    let edge_order = edges.iter()
-      .map(|edge| (edge.node_a, edge.node_b))
-      .collect::<Vec<(usize, usize)>>();
-
-  assert_eq!(edge_order, vec![(0,5),(4,5),(5,6),(2,6),(1,2),(3,6)]);
-}
-
-//------------------------------------------------------------ 
 
 #[test]
 fn test_connected_true(){
@@ -180,4 +119,32 @@ fn test_removal_complex(){
   assert_eq!(chain.end, 1);
   assert_eq!(chain.dist, 2.0);
   assert_eq!(chain.nodes, vec![(6,0.0),(2,1.0),(1,2.0)]);
+}
+
+#[test]
+fn test_remove_redundancy(){
+  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/redundant.txt").unwrap();
+  let (mut edges, _) = edge_file_to_vec(input_file);
+  sort_edges_by_nodes(&mut edges);
+  let deduplicated = remove_duplicate_edges(edges);
+  let correct = vec![
+    Edge::new(0,1,1.0),
+    Edge::new(1,2,1.0),
+    Edge::new(1,5,4.0),
+    Edge::new(2,3,1.0),
+  ];
+
+  for (dedup_edge, correct_edge) in deduplicated.iter().zip(correct){
+    assert_eq!(*(*dedup_edge), correct_edge);
+  }
+}
+
+#[test]
+fn test_store_val2() -> io::Result<()> {
+  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt").unwrap();
+  let (_, chains) = remove_val_2_nodes(input_file);
+  assert_eq!(
+    store_val_2(chains, "src/bin/graph_io/reduce_graph/tests/results/cycle_nodes.txt")?
+    , ());
+  Ok(())
 }

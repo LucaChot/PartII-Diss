@@ -4,7 +4,7 @@ use std::io::{self, BufRead, Write};
 mod parse_edge_txt;
 mod reduce_graph;
 use parse_edge_txt::parse_string;
-use reduce_graph::store_val_2;
+use reduce_graph::complete_reduction;
 
 fn create_bin_file(input_file : File, mut output_file : File) -> io::Result<()> {
   let input_reader = io::BufReader::new(input_file);
@@ -30,14 +30,12 @@ fn create_bin_file(input_file : File, mut output_file : File) -> io::Result<()> 
   Ok(())
 }
 
-fn main() -> io::Result<()> {
+fn main() -> io::Result<()>{
     // Specify the path to the text file
     let input_file_path = "cal.cedge.txt";
-    let output_file_path = "cal.edge";
+    let output_edges = "cal.edge";
+    let output_nodes = "cal.nodes";
 
     // Open the file
-    let input_file = File::open(input_file_path)?;
-    //let output_file = File::create(output_file_path)?;
-
-    store_val_2(input_file, output_file_path)
+    complete_reduction(input_file_path, output_edges, output_nodes)
 }
