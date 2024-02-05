@@ -3,12 +3,11 @@ use std::{thread, sync::mpsc};
 
 use super::broadcast::Sendable;
 use super::processor::{general_processor, CoreInfo};
-use super::matrix_multiplication::fox_otto::*;
-use super::matrix_multiplication::hash::*;
-use super::matrix_multiplication::cannons::*;
+use super::matrix_multiplication::*;
 use crate::graph_optimisation::reduction::remove_val2_nodes;
 use crate::graph_optimisation::expansion::*;
 
+use crate::matrix_multiplication::{FoxOtto, ParallelMatMult, Cannon, Hash};
 use crate::processor::{get_submatrices, get_submatrices_dim};
 
 impl Sendable for isize {}
@@ -43,14 +42,9 @@ fn test_fox_otto_matrix_mult() {
   
   let (main_tx, main_rx) = mpsc::channel();
 
-  let mut a_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_a, PROCESSOR_DIM));
-
-  let mut b_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_b, PROCESSOR_DIM));
-
-  let mut c_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_c, PROCESSOR_DIM));
+  let mut a_submatrices = FoxOtto::setup_a(&matrix_a, PROCESSOR_DIM);
+  let mut b_submatrices = FoxOtto::setup_b(&matrix_b, PROCESSOR_DIM);
+  let mut c_submatrices = FoxOtto::setup_c(&matrix_b, PROCESSOR_DIM);
 
 
   for i in 0..PROCESSOR_DIM.0 {
@@ -64,7 +58,7 @@ fn test_fox_otto_matrix_mult() {
       let mut c = c_submatrices.pop_front().unwrap();
 
       let handle = thread::spawn(move || {
-        c = fox_otto_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
+        c = FoxOtto::matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -129,14 +123,9 @@ fn test_hash_matrix_mult() {
   
   let (main_tx, main_rx) = mpsc::channel();
 
-  let mut a_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_a, PROCESSOR_DIM));
-
-  let mut b_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_b, PROCESSOR_DIM));
-
-  let mut c_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_c, PROCESSOR_DIM));
+  let mut a_submatrices = Hash::setup_a(&matrix_a, PROCESSOR_DIM);
+  let mut b_submatrices = Hash::setup_b(&matrix_b, PROCESSOR_DIM);
+  let mut c_submatrices = Hash::setup_c(&matrix_b, PROCESSOR_DIM);
 
 
   for i in 0..PROCESSOR_DIM.0 {
@@ -150,7 +139,7 @@ fn test_hash_matrix_mult() {
       let mut c = c_submatrices.pop_front().unwrap();
 
       let handle = thread::spawn(move || {
-        c = hash_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
+        c = Hash::matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -215,19 +204,9 @@ fn test_cannon_matrix_mult() {
   
   let (main_tx, main_rx) = mpsc::channel();
 
-  let mut a_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_a, PROCESSOR_DIM));
-
-  a_submatrices = cannon_setup_a(a_submatrices, PROCESSOR_DIM);
-
-  let mut b_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_b, PROCESSOR_DIM));
-
-  b_submatrices = cannon_setup_b(b_submatrices, PROCESSOR_DIM);
-
-  let mut c_submatrices : VecDeque<Matrix<isize>> = 
-    VecDeque::from(get_submatrices(&matrix_c, PROCESSOR_DIM));
-
+  let mut a_submatrices = Cannon::setup_a(&matrix_a, PROCESSOR_DIM);
+  let mut b_submatrices = Cannon::setup_b(&matrix_b, PROCESSOR_DIM);
+  let mut c_submatrices = Cannon::setup_c(&matrix_b, PROCESSOR_DIM);
 
   for i in 0..PROCESSOR_DIM.0 {
     for j in 0..PROCESSOR_DIM.1 {
@@ -240,7 +219,7 @@ fn test_cannon_matrix_mult() {
       let mut c = c_submatrices.pop_front().unwrap();
 
       let handle = thread::spawn(move || {
-        c = cannon_matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
+        c = Cannon::matrix_mult(a, b, c, PROCESSOR_DIM.0, &core_info, singleton_matrix_multiplication);
         result_tx.send((i, j, c)).unwrap();
       });
       handles.push(handle);
@@ -326,8 +305,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   // Message channel to return values from each thread
   let (main_tx, main_rx) = mpsc::channel();
 
-  let mut m_submatrices : VecDeque<Matrix<Msg>> = 
-    VecDeque::from(get_submatrices(&m_matrix, PROCESSOR_DIM));
+  let mut m_submatrices = FoxOtto::setup_a(&m_matrix, PROCESSOR_DIM);
 
 
   for i in 0..PROCESSOR_DIM.0 {
@@ -344,7 +322,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
       let handle = thread::spawn(move || {
         // Square the W matrix and update P
         for _ in 0..iterations {
-          m = fox_otto_matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &core_info, singleton_pred_matrix_multiplication);
+          m = FoxOtto::matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &core_info, singleton_pred_matrix_multiplication);
         }
         // Return the final values for the W and P matrix as well as the
         // index of the core so that main thread knows the values corresponding

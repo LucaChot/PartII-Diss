@@ -1,5 +1,7 @@
-use std::fmt::{Debug,Display,Formatter,Result};
+use std::{fmt::{Debug,Display,Formatter,Result}, collections::VecDeque};
+use crate::processor::CoreInfo;
 use crate::broadcast::Sendable;
+use crate::processor::{get_submatrices, get_submatrices_dim};
 
 #[derive(Clone,Debug)]
 pub struct Msg {
@@ -64,16 +66,34 @@ pub fn serial_matrix_multiplication<T : Sendable>(matrix_a : &Matrix<T>, matrix_
     ).collect::<Matrix<T>>()
 }
 
-pub mod hash {
-  use crate::broadcast::Sendable;
-  use crate::processor::CoreInfo;
-  use super::serial_matrix_multiplication;
-  pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
+//TODO : Implement default
+pub trait ParallelMatMult {
+  fn setup_a<T : Sendable>(matrix_a : &Matrix<T>,
+                                 (rows, cols) : (usize, usize)) -> VecDeque<Matrix<T>> {
+    VecDeque::from(get_submatrices(matrix_a, (rows, cols)))
+  }
+  fn setup_b<T : Sendable>(matrix_b : &Matrix<T>,
+                                 (rows, cols) : (usize, usize)) -> VecDeque<Matrix<T>> {
+    VecDeque::from(get_submatrices(matrix_b, (rows, cols)))
+  }
+  fn setup_c<T : Sendable>(matrix_c : &Matrix<T>,
+                                 (rows, cols) : (usize, usize)) -> VecDeque<Matrix<T>> {
+    VecDeque::from(get_submatrices(matrix_c, (rows, cols)))
+  }
+  fn matrix_mult<T : Sendable>(_ : Matrix<T>, _ : Matrix<T>, 
+                                   _ : Matrix<T>, _ : usize,
+                                   _ : &CoreInfo<Matrix<T>>, 
+                                   _ : fn(T,T,T)->T) -> Matrix<T>;
+}
 
-  pub fn hash_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
-                            iteration : usize, core_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T)
-    -> Matrix<T> {
-    for iter in 0..iteration {
+pub struct Hash { } 
+
+impl ParallelMatMult for Hash {
+  fn matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                                     mut matrix_c : Matrix<T>, iterations : usize,
+                                     core_info : &CoreInfo<Matrix<T>>, 
+                                     func : fn(T,T,T)->T) -> Matrix<T> {
+    for iter in 0..iterations {
       if core_info.col == iter {
         core_info.core_comm.row.send(matrix_a.clone());
       }
@@ -87,46 +107,38 @@ pub mod hash {
     }
     return matrix_c;
   }
-
 }
 
-pub mod fox_otto {
-  use crate::broadcast::Sendable;
-  use crate::processor::CoreInfo;
-  use super::serial_matrix_multiplication;
-  pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
+pub struct FoxOtto { } 
 
-  pub fn fox_otto_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
-                                            iterations : usize, p_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T) 
-    -> Matrix<T> {
+impl ParallelMatMult for FoxOtto {
+  fn matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                                     mut matrix_c : Matrix<T>, iterations : usize,
+                                     core_info : &CoreInfo<Matrix<T>>, 
+                                     func : fn(T,T,T)->T) -> Matrix<T> {
     let mut received_b = matrix_b;
 
     for iter in 0..iterations {
-      if iter == (( iterations + p_info.col - p_info.row) % iterations ) {
-        p_info.core_comm.row.send(matrix_a.clone());
+      if iter == (( iterations + core_info.col - core_info.row) % iterations ) {
+        core_info.core_comm.row.send(matrix_a.clone());
       }
-      let received_a = p_info.core_comm.row.recv().unwrap();
+      let received_a = core_info.core_comm.row.recv().unwrap();
       
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
       
-      let _ = p_info.core_comm.up.send(received_b);
-      received_b = p_info.core_comm.down.recv().unwrap();
+      let _ = core_info.core_comm.up.send(received_b);
+      received_b = core_info.core_comm.down.recv().unwrap();
     }
     return matrix_c;
   }
-
 }
 
-pub mod cannons {
-  use std::collections::VecDeque;
+pub struct Cannon { } 
 
-use crate::broadcast::Sendable;
-  use crate::processor::CoreInfo;
-  use super::serial_matrix_multiplication;
-  pub use super::{Msg, Matrix, singleton_matrix_multiplication, singleton_pred_matrix_multiplication};
-
-  pub fn cannon_setup_a<T : Sendable>(submatrices_a : VecDeque<Matrix<T>>, (rows, cols) : (usize, usize)) 
-    -> VecDeque<Matrix<T>> {
+impl ParallelMatMult for Cannon {
+  fn setup_a<T : Sendable>(matrix_a : &Matrix<T>,
+                                 (rows, cols) : (usize, usize)) -> VecDeque<Matrix<T>> {
+    let submatrices_a = VecDeque::from(get_submatrices(matrix_a, (rows, cols)));
     let indices : Vec<usize> = (0..rows)
       .flat_map(|row| (0..cols)
                 .map(|col| row * cols +((cols + col - row) % cols))
@@ -138,8 +150,9 @@ use crate::broadcast::Sendable;
     return result;
   }
 
-  pub fn cannon_setup_b<T : Sendable>(submatrices_b : VecDeque<Matrix<T>>, (rows, cols) : (usize, usize)) 
-    -> VecDeque<Matrix<T>> {
+  fn setup_b<T : Sendable>(matrix_b : &Matrix<T>,
+                                 (rows, cols) : (usize, usize)) -> VecDeque<Matrix<T>> {
+    let submatrices_b = VecDeque::from(get_submatrices(matrix_b, (rows, cols)));
     let indices : Vec<usize> = (0..rows)
       .flat_map(|row| (0..cols)
                 .map(|col| ((rows + row - col) % rows) * cols + col)
@@ -151,24 +164,25 @@ use crate::broadcast::Sendable;
     return result;
   }
 
-  pub fn cannon_matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, mut matrix_c : Matrix<T>,
-                                            iterations : usize, p_info : &CoreInfo<Matrix<T>>, func : fn(T,T,T)->T) 
-    -> Matrix<T> {
+  fn matrix_mult<T : Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                                     mut matrix_c : Matrix<T>, iterations : usize,
+                                     core_info : &CoreInfo<Matrix<T>>, 
+                                     func : fn(T,T,T)->T) -> Matrix<T> {
     let mut received_a = matrix_a;
     let mut received_b = matrix_b;
 
     for _ in 0..iterations {
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c, func);
       
-      p_info.core_comm.left.send(received_a);
-      p_info.core_comm.up.send(received_b);
-      received_a = p_info.core_comm.right.recv().unwrap();
-      received_b = p_info.core_comm.down.recv().unwrap();
+      core_info.core_comm.left.send(received_a);
+      core_info.core_comm.up.send(received_b);
+      received_a = core_info.core_comm.right.recv().unwrap();
+      received_b = core_info.core_comm.down.recv().unwrap();
     }
     return matrix_c;
   }
-
 }
+
     
 #[cfg(test)]
 mod tests;

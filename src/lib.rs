@@ -1,15 +1,46 @@
 use std::collections::VecDeque;
 use std::{thread, sync::mpsc, f64};
 
-mod broadcast;
-mod processor;
-mod matrix_multiplication;
-mod graph_optimisation;
+pub mod broadcast;
+pub mod processor;
+pub mod matrix_multiplication;
+pub mod graph_optimisation;
 
+use broadcast::Sendable;
+use matrix_multiplication::*;
 use processor::{CoreInfo,general_processor};
-use matrix_multiplication::fox_otto::*;
 
+use crate::matrix_multiplication::{Msg, singleton_pred_matrix_multiplication, FoxOtto, ParallelMatMult};
 use crate::processor::{get_submatrices, get_submatrices_dim};
+
+enum Comm {
+  BROADCAST,
+  FOXOTTO,
+  CANNON,
+}
+
+struct Processor<T : Sendable> {
+  cores_height : usize, 
+  cores_width : usize,
+  cores_info : VecDeque<CoreInfo<T>>,
+}
+
+impl<T : Sendable> Processor<T>{
+  fn new(p_height : usize, p_width: usize) -> Self {
+    Processor {
+      cores_height : p_height,
+      cores_width : p_width,
+      cores_info : VecDeque::from(general_processor::<T>((p_height, p_width))),
+    }
+  }
+
+  fn parralel_mult (&self, matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                   singleton_func : fn(T, T, T) -> T, comm : Comm) -> Matrix<T> {
+      matrix_a
+  }
+        
+}
+
 
 
 fn main() {
@@ -58,8 +89,7 @@ fn main() {
   // Message channel to return values from each thread
   let (main_tx, main_rx) = mpsc::channel();
 
-  let mut m_submatrices : VecDeque<Matrix<Msg>> = 
-    VecDeque::from(get_submatrices(&m_matrix, PROCESSOR_DIM));
+  let mut m_submatrices = FoxOtto::setup_a(&m_matrix, PROCESSOR_DIM);
 
 
   for i in 0..PROCESSOR_DIM.0 {
@@ -76,7 +106,7 @@ fn main() {
       let handle = thread::spawn(move || {
         // Square the W matrix and update P
         for _ in 0..iterations {
-          m = fox_otto_matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &core_info, singleton_pred_matrix_multiplication);
+          m = FoxOtto::matrix_mult(m.clone(), m.clone(), m.clone(), PROCESSOR_DIM.0, &core_info, singleton_pred_matrix_multiplication);
         }
         // Return the final values for the W and P matrix as well as the
         // index of the core so that main thread knows the values corresponding
