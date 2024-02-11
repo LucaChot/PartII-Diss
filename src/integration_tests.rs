@@ -1,10 +1,3 @@
-use std::collections::VecDeque;
-use std::{thread, sync::mpsc};
-
-use super::processor::{general_processor, CoreInfo};
-
-use crate::matrix_multiplication::{FoxOtto, ParallelMatMult};
-use crate::processor::get_submatrices_dim;
 use crate::{Processor, Comm};
 use crate::types::{Matrix, Msg};
 
@@ -25,7 +18,7 @@ fn test_hash_matrix_mult_api() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::BROADCAST);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::BROADCAST);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -52,7 +45,7 @@ fn test_fox_otto_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::FOXOTTO);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::FOXOTTO);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -79,7 +72,7 @@ fn test_cannon_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::CANNON);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::CANNON);
 
   assert_eq!(c, vec![
     vec![30,24,18],
