@@ -1,12 +1,3 @@
-use std::collections::VecDeque;
-use std::{thread, sync::mpsc};
-
-use super::processor::{general_processor, CoreInfo};
-use crate::graph_optimisation::reduction::remove_val2_nodes;
-use crate::graph_optimisation::expansion::*;
-
-use crate::matrix_multiplication::{FoxOtto, ParallelMatMult};
-use crate::processor::get_submatrices_dim;
 use crate::{Processor, Comm};
 use crate::types::{Matrix, Msg};
 
@@ -27,7 +18,7 @@ fn test_hash_matrix_mult_api() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::BROADCAST);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::BROADCAST);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -54,7 +45,7 @@ fn test_fox_otto_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::FOXOTTO);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::FOXOTTO);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -81,7 +72,7 @@ fn test_cannon_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parralel_mult(matrix_a, matrix_b, Comm::CANNON);
+  let c = p.parallel_mult(matrix_a, matrix_b, Comm::CANNON);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -118,19 +109,14 @@ fn test_fox_otto_matrix_mult_with_reduction() {
     vec![-1,-1,-1,-1,-1,-1, 0],
   ];
 
-  let (reduced_w, reduced_p, removed_val2_nodes) = remove_val2_nodes(&w_matrix, &p_matrix);
-
-  let matrix_m = Msg::zip(reduced_w, reduced_p);
+  let matrix_m = Msg::zip(w_matrix, p_matrix);
   
   let iterations = f64::ceil(f64::log2(matrix_m.len() as f64)) as usize;
-  let c = p.parralel_square(matrix_m, iterations, Comm::FOXOTTO);
+  let c = p.parallel_square(matrix_m, iterations, Comm::FOXOTTO);
 
   let (result_w, result_p) = Msg::unzip(c);
 
-  let expanded_p = recover_val2_nodes_p(&result_p, &p_matrix, &removed_val2_nodes);
-  let expanded_w = recover_val2_nodes_w(&result_w, &w_matrix, &removed_val2_nodes);
-
-  assert_eq!(expanded_p, vec![
+  assert_eq!(result_p, vec![
     vec![0,5,0,0,1,2,2],
     vec![0,1,2,3,1,5,6],
     vec![0,5,2,3,1,2,2],
@@ -140,7 +126,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
     vec![0,1,2,3,4,5,6],
   ]);
 
-  assert_eq!(expanded_w, vec![
+  assert_eq!(result_w, vec![
     vec![ 0, 5, 2, 3, 6, 4, 3],
     vec![-1, 0,-1,-1, 1,-1,-1],
     vec![-1, 3, 0,-1, 4, 2, 1],
