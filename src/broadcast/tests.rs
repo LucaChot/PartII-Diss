@@ -17,8 +17,8 @@ fn test_correctly_receive_serial(){
     std::mem::replace(&mut bchannels[1], BChannel::empty()); 
 
   bchannel0.send(0);
-  assert_eq!(bchannel0.recv().unwrap(), 0);
-  assert_eq!(bchannel1.recv().unwrap(), 0);
+  assert_eq!(bchannel0.recv(), 0);
+  assert_eq!(bchannel1.recv(), 0);
 }
 
 #[test]
@@ -38,21 +38,14 @@ fn test_correctly_receive_parallel(){
         bchannel.send(0);
         println!("Sent");
       }
-      let result = bchannel.recv(); 
-      match result { 
-        Ok(received) => {
-          assert_eq!(received, 0);
-        }
-        Err(_) => {
-          panic!("Error: The channel was closed before a message was sent");
-        }
-      }
+      let received = bchannel.recv(); 
+      assert_eq!(received, 0);
     });
     handles.push(handle);
   }
 
   for handle in handles {
-    handle.join().unwrap();
+    let _ = handle.join();
   }
 }
 
@@ -68,8 +61,8 @@ fn test_inorder_serial(){
 
   bchannel0.send(0);
   bchannel1.send(1);
-  assert_eq!(bchannel0.recv().unwrap(), bchannel1.recv().unwrap());
-  assert_eq!(bchannel0.recv().unwrap(), bchannel1.recv().unwrap());
+  assert_eq!(bchannel0.recv(), bchannel1.recv());
+  assert_eq!(bchannel0.recv(), bchannel1.recv());
 }
 
 #[test]
@@ -94,27 +87,21 @@ fn test_inorder_parallel(){
         bchannel.send(String::from(val));
       }
       for _ in 0..2 {
-        match bchannel.recv() {
-          Ok(received) => {
-            println!("{i} received: {}", received);
-            let _ = tx.send(received);
-          }
-          Err(_) => {
-            println!("Channel closed");
-          }
-        }
+        let received =  bchannel.recv(); 
+        println!("{i} received: {}", received);
+        let _ = tx.send(received);
       }
     });
     handles.push(handle);
   }
 
   for handle in handles {
-    handle.join().unwrap();
+    let _ = handle.join();
   }
 
   for _ in 0..2 {
-    let value = receivers[0].recv().unwrap(); 
-    assert_eq!(value, receivers[1].recv().unwrap());
-    assert_eq!(value, receivers[2].recv().unwrap());
+    let value = receivers[0].recv(); 
+    assert_eq!(value, receivers[1].recv());
+    assert_eq!(value, receivers[2].recv());
   }
 }

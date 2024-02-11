@@ -1,4 +1,4 @@
-use crate::matrix_multiplication::Matrix;
+use crate::types::Matrix;
 use super::Val2Node;
 
 use super::reduction::get_remaining_nodes;
