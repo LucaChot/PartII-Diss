@@ -12,30 +12,30 @@ fn general_correct_connection(){
   let cores = general_processor::<i32>((2, 2));
   // Check that horizontal broadcast works
   cores[0].core_comm.up.send(1);
-  assert_eq!(cores[2].core_comm.down.recv().unwrap(), 1);
+  assert_eq!(cores[2].core_comm.down.recv(), 1);
 
   cores[0].core_comm.right.send(2);
-  assert_eq!(cores[1].core_comm.left.recv().unwrap(), 2);
+  assert_eq!(cores[1].core_comm.left.recv(), 2);
 
   // Check that vertical broadcast works
   cores[0].core_comm.down.send(3);
-  assert_eq!(cores[2].core_comm.up.recv().unwrap(), 3);
+  assert_eq!(cores[2].core_comm.up.recv(), 3);
 
   cores[0].core_comm.left.send(4);
-  assert_eq!(cores[1].core_comm.right.recv().unwrap(), 4);
+  assert_eq!(cores[1].core_comm.right.recv(), 4);
 
   cores[3].core_comm.up.send(1);
-  assert_eq!(cores[1].core_comm.down.recv().unwrap(), 1);
+  assert_eq!(cores[1].core_comm.down.recv(), 1);
 
   cores[3].core_comm.right.send(2);
-  assert_eq!(cores[2].core_comm.left.recv().unwrap(), 2);
+  assert_eq!(cores[2].core_comm.left.recv(), 2);
 
   // Check that vertical broadcast works
   cores[3].core_comm.down.send(3);
-  assert_eq!(cores[1].core_comm.up.recv().unwrap(), 3);
+  assert_eq!(cores[1].core_comm.up.recv(), 3);
 
   cores[3].core_comm.left.send(4);
-  assert_eq!(cores[2].core_comm.right.recv().unwrap(), 4);
+  assert_eq!(cores[2].core_comm.right.recv(), 4);
 }
 
 #[test]
@@ -44,21 +44,21 @@ fn general_correct_broadcast(){
 
   // Check that horizontal broadcast works
   cores[0].core_comm.row.send(0);
-  assert_eq!(cores[0].core_comm.row.recv().unwrap(), 0);
-  assert_eq!(cores[1].core_comm.row.recv().unwrap(), 0);
+  assert_eq!(cores[0].core_comm.row.recv(), 0);
+  assert_eq!(cores[1].core_comm.row.recv(), 0);
 
   cores[3].core_comm.row.send(1);
-  assert_eq!(cores[2].core_comm.row.recv().unwrap(), 1);
-  assert_eq!(cores[3].core_comm.row.recv().unwrap(), 1);
+  assert_eq!(cores[2].core_comm.row.recv(), 1);
+  assert_eq!(cores[3].core_comm.row.recv(), 1);
 
   // Check that vertical broadcast works
   cores[2].core_comm.col.send(2);
-  assert_eq!(cores[0].core_comm.col.recv().unwrap(), 2);
-  assert_eq!(cores[2].core_comm.col.recv().unwrap(), 2);
+  assert_eq!(cores[0].core_comm.col.recv(), 2);
+  assert_eq!(cores[2].core_comm.col.recv(), 2);
 
   cores[1].core_comm.col.send(3);
-  assert_eq!(cores[1].core_comm.col.recv().unwrap(), 3);
-  assert_eq!(cores[3].core_comm.col.recv().unwrap(), 3);
+  assert_eq!(cores[1].core_comm.col.recv(), 3);
+  assert_eq!(cores[3].core_comm.col.recv(), 3);
 }
 // ------------------------------------------------------------
 

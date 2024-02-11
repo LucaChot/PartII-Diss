@@ -1,8 +1,8 @@
-use std::sync::mpsc::{self, RecvError};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::fmt::Debug;
 
-pub trait Sendable : Clone + Debug{}
+pub trait Sendable : Clone + Debug + std::marker::Send{}
 
 pub struct BChannel<T : Sendable> {
   rx : mpsc::Receiver<T>,
@@ -18,8 +18,8 @@ impl<T : Sendable> BChannel<T> {
     }
   }
 
-  pub fn recv(&self) -> Result<T, RecvError> {
-    self.rx.recv()
+  pub fn recv(&self) -> T {
+    self.rx.recv().unwrap()
   }
 
   pub fn new(n : usize) -> Vec<BChannel<T>> {
@@ -66,8 +66,8 @@ impl<T : Sendable> Channel<T> {
     self.tx.send(data.clone()).unwrap();
   }
 
-  pub fn recv(&self) -> Result<T, RecvError> {
-    self.rx.recv()
+  pub fn recv(&self) -> T {
+    self.rx.recv().unwrap()
   }
 
   pub fn new() -> (Channel<T>, Channel<T>) {

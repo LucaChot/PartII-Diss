@@ -1,4 +1,4 @@
-use crate::matrix_multiplication::Matrix;
+use crate::types::Matrix;
 use super::Val2Node;
 
 fn is_val2_nodes(node:usize, links_in : &Vec<usize>, links_out : &Vec<usize>) -> Option<(usize,usize)> {

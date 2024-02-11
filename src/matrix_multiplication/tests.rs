@@ -17,7 +17,7 @@ fn test_serial_matrix_multiplication_square(){
     vec![0,0]
   ];
 
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c, singleton_matrix_multiplication);
+  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],
@@ -43,7 +43,7 @@ fn test_serial_matrix_multiplication_non_square(){
     vec![0,0]
   ];
 
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c, singleton_matrix_multiplication);
+  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],
@@ -65,7 +65,7 @@ fn test_cannon_shift_a(){
     vec![ vec![8] ], vec![ vec![6] ], vec![ vec![7] ],
   ];
 
-  let result = Cannon::setup_a(&matrix_a, (3, 3));
+  let result = Cannon::outer_setup_a(&matrix_a, (3, 3));
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
@@ -86,7 +86,7 @@ fn test_cannon_shift_b(){
     vec![ vec![6] ], vec![ vec![1] ], vec![ vec![5] ],
   ];
 
-  let result = Cannon::setup_b(&matrix_b, (3, 3));
+  let result = Cannon::outer_setup_b(&matrix_b, (3, 3));
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
