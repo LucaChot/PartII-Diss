@@ -5,7 +5,6 @@ use std::{thread, sync::mpsc};
 mod broadcast;
 mod processor;
 mod matrix_multiplication;
-mod graph_optimisation;
 mod types;
 
 pub use broadcast::Sendable;
