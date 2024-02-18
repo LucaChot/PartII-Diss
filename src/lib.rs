@@ -84,6 +84,10 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
         let handle = thread::spawn(move || {
           let c = F::matrix_mult(a, b, c, iterations, &core_info);
           result_tx.send((i, j, c)).unwrap();
+          println!("Core {} {} direct : {}",core_info.row, core_info.col,
+                   core_info.core_comm.num_direct());
+          println!("Core {} {} broadcast : {}",core_info.row, core_info.col,
+                   core_info.core_comm.num_broadcasts());
         });
         handles.push(handle);
       }
@@ -138,6 +142,10 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
             b = F::inner_setup_b(c.clone(), &core_info);
           }
           result_tx.send((i, j, c)).unwrap();
+          println!("Core {} {} direct : {}",core_info.row, core_info.col,
+                   core_info.core_comm.num_direct());
+          println!("Core {} {} broadcast : {}",core_info.row, core_info.col,
+                   core_info.core_comm.num_broadcasts());
         });
         handles.push(handle);
       }

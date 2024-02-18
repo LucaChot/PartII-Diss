@@ -20,6 +20,14 @@ impl<T : Sendable> CoreComm<T> {
       col: BChannel::empty()
     }
   } 
+
+  pub fn num_broadcasts(&self) -> usize {
+    self.row.get_sent() + self.col.get_sent()
+  }
+
+  pub fn num_direct(&self) -> usize {
+    self.left.get_sent() + self.right.get_sent() + self.up.get_sent() + self.down.get_sent()
+  }
 }
 
 pub struct CoreInfo<T : Sendable> {
