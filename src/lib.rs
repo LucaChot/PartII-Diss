@@ -62,6 +62,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     let dim = matrix_a.len();
     // Message channel to return values from each thread
     let (main_tx, main_rx) = mpsc::channel();
+    let (direct_tx, direct_rx) = mpsc::channel::<usize>();
+    let (broadcast_tx, broadcast_rx) = mpsc::channel::<usize>();
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, processor_dim);
     let mut submatrices_b = F::outer_setup_b(&matrix_b, processor_dim);
@@ -74,6 +76,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
         let core_info = self.cores_info.pop_front().unwrap();
         // Sender for returning the results
         let result_tx = main_tx.clone();
+        let dir_tx = direct_tx.clone();
+        let broad_tx = broadcast_tx.clone();
         let iterations = self.cores_height;
 
         // Assign each threads matrix component
@@ -84,10 +88,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
         let handle = thread::spawn(move || {
           let c = F::matrix_mult(a, b, c, iterations, &core_info);
           result_tx.send((i, j, c)).unwrap();
-          println!("Core {} {} direct : {}",core_info.row, core_info.col,
-                   core_info.core_comm.num_direct());
-          println!("Core {} {} broadcast : {}",core_info.row, core_info.col,
-                   core_info.core_comm.num_broadcasts());
+          let _ = dir_tx.send(core_info.core_comm.num_direct());
+          let _ = broad_tx.send(core_info.core_comm.num_broadcasts());
         });
         handles.push(handle);
       }
@@ -95,8 +97,22 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     // Ensures that channel to main thread is closed when the other threads 
     // finish
     drop(main_tx);
+    drop(direct_tx);
+    drop(broadcast_tx);
 
     self.collect_c(main_rx, &mut matrix_c, (dim,dim));
+
+    let mut directs = 0;
+    for direct_count in direct_rx {
+      directs += direct_count;
+    }
+    println!("Total number of direct msgs : {}", directs);
+
+    let mut broadcasts = 0;
+    for broadcast_count in broadcast_rx {
+      broadcasts += broadcast_count;
+    }
+    println!("Total number of broadcasts msgs : {}", broadcasts);
 
     for handle in handles {
       handle.join().unwrap();
@@ -115,6 +131,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     let dim = matrix_a.len();
     // Message channel to return values from each thread
     let (main_tx, main_rx) = mpsc::channel();
+    let (direct_tx, direct_rx) = mpsc::channel::<usize>();
+    let (broadcast_tx, broadcast_rx) = mpsc::channel::<usize>();
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, processor_dim);
     let mut submatrices_b = F::outer_setup_b(&matrix_a, processor_dim);
@@ -128,6 +146,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
         let core_info = self.cores_info.pop_front().unwrap();
         // Sender for returning the results
         let result_tx = main_tx.clone();
+        let dir_tx = direct_tx.clone();
+        let broad_tx = broadcast_tx.clone();
         let inner_iterations = self.cores_height;
 
         // Assign each threads matrix component
@@ -142,10 +162,8 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
             b = F::inner_setup_b(c.clone(), &core_info);
           }
           result_tx.send((i, j, c)).unwrap();
-          println!("Core {} {} direct : {}",core_info.row, core_info.col,
-                   core_info.core_comm.num_direct());
-          println!("Core {} {} broadcast : {}",core_info.row, core_info.col,
-                   core_info.core_comm.num_broadcasts());
+          let _ = dir_tx.send(core_info.core_comm.num_direct());
+          let _ = broad_tx.send(core_info.core_comm.num_broadcasts());
         });
         handles.push(handle);
       }
@@ -153,8 +171,22 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     // Ensures that channel to main thread is closed when the other threads 
     // finish
     drop(main_tx);
+    drop(direct_tx);
+    drop(broadcast_tx);
 
     self.collect_c(main_rx, &mut matrix_c, (dim,dim));
+
+    let mut directs = 0;
+    for direct_count in direct_rx {
+      directs += direct_count;
+    }
+    println!("Total number of direct msgs : {}", directs);
+
+    let mut broadcasts = 0;
+    for broadcast_count in broadcast_rx {
+      broadcasts += broadcast_count;
+    }
+    println!("Total number of broadcasts msgs : {}", broadcasts);
 
     for handle in handles {
       handle.join().unwrap();
