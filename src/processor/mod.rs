@@ -1,4 +1,5 @@
 use crate::broadcast::{BChannel, Sendable, Channel};
+use std::{time::{Duration, Instant}, cell::RefCell, sync::{Arc, Mutex}};
 
 pub struct CoreComm<T:Sendable>{
   pub left : Channel<T>,
@@ -30,10 +31,38 @@ impl<T : Sendable> CoreComm<T> {
   }
 }
 
+#[derive(Clone)]
+pub struct CoreDebug {
+  last_time : Instant,
+  total_elapsed : Duration,
+}
+
+impl CoreDebug {
+  pub fn new() -> CoreDebug {
+    CoreDebug { 
+      last_time: Instant::now(),
+      total_elapsed: Duration::ZERO,
+    }
+
+  }
+  pub fn get_elapsed(&self) -> Duration {
+    self.last_time.elapsed() + self.total_elapsed
+  }
+
+  pub fn update_elapsed(&mut self, outer : Duration) {
+    let current = self.get_elapsed();
+    if current < outer {
+      self.last_time = Instant::now();
+      self.total_elapsed = outer;
+    }
+  }
+}
+
 pub struct CoreInfo<T : Sendable> {
   pub row : usize,
   pub col : usize,
   pub core_comm : CoreComm<T>,
+  core_debug : Arc<Mutex<RefCell<CoreDebug>>>,
 } 
 
 // TODO : Update comment
@@ -53,32 +82,52 @@ pub fn general_processor<T: Sendable>((rows, cols) : (usize,usize)) -> Vec<CoreI
   let mut cores : Vec<CoreInfo<T>> = Vec::with_capacity(num_cores);
   for row in 0..rows {
     for col in 0..cols {
-      cores.push(CoreInfo{ row, col, core_comm : CoreComm::new() });
+      cores.push(CoreInfo{ row, col, core_comm : CoreComm::new(), 
+        core_debug : Arc::new(Mutex::new(RefCell::new(CoreDebug::new())))
+      })
     }
   }
 
   for i in 0..rows {
     let mut bchannels : Vec<BChannel<T>> = BChannel::new(cols);
     for step in 0..cols {
-      cores[rows * i + step].core_comm.row = bchannels.pop().unwrap();
+      let core_index = rows * i + step;
+      let mut bchannel = bchannels.pop().unwrap();
+      bchannel.set_core_debug(Arc::clone(&cores[core_index].core_debug));
+      cores[core_index].core_comm.row = bchannel;
     }
   }
 
   for i in 0..cols {
     let mut bchannels : Vec<BChannel<T>> = BChannel::new(cols);
     for step in 0..rows {
-      cores[rows * step + i].core_comm.col = bchannels.pop().unwrap();
+      let core_index = rows * step + i;
+      let mut bchannel = bchannels.pop().unwrap();
+      bchannel.set_core_debug(Arc::clone(&cores[core_index].core_debug));
+      cores[core_index].core_comm.col = bchannel;
     }
   }
   
   for i in 0..num_cores {
-    let (up, down) = Channel::new();
-    cores[i].core_comm.up = up;
-    cores[( num_cores + i - cols ) % num_cores].core_comm.down = down; 
+    let (mut up, mut down) = Channel::new();
+    let up_index = i;
+    let down_index = ( num_cores + i - cols ) % num_cores;
 
-    let (right, left) = Channel::new();
-    cores[i].core_comm.right = right;
-    cores[i - ( i % cols ) + ( (i +  1) % cols )].core_comm.left = left; 
+    up.set_core_debug(Arc::clone(&cores[up_index].core_debug));
+    down.set_core_debug(Arc::clone(&cores[down_index].core_debug));
+
+    cores[up_index].core_comm.up = up;
+    cores[down_index].core_comm.down = down; 
+
+    let (mut right, mut left) = Channel::new();
+    let right_index = i;
+    let left_index = i - ( i % cols ) + ( (i +  1) % cols );
+
+    right.set_core_debug(Arc::clone(&cores[right_index].core_debug));
+    left.set_core_debug(Arc::clone(&cores[left_index].core_debug));
+
+    cores[right_index].core_comm.right = right;
+    cores[left_index].core_comm.left = left; 
   }
   
   return cores

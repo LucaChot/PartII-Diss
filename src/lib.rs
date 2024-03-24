@@ -106,13 +106,13 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     for direct_count in direct_rx {
       directs += direct_count;
     }
-    println!("Total number of direct msgs : {}", directs);
+    //println!("Total number of direct msgs : {}", directs);
 
     let mut broadcasts = 0;
     for broadcast_count in broadcast_rx {
       broadcasts += broadcast_count;
     }
-    println!("Total number of broadcasts msgs : {}", broadcasts);
+    //println!("Total number of broadcasts msgs : {}", broadcasts);
 
     for handle in handles {
       handle.join().unwrap();
@@ -180,13 +180,13 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     for direct_count in direct_rx {
       directs += direct_count;
     }
-    println!("Total number of direct msgs : {}", directs);
+    //println!("Total number of direct msgs : {}", directs);
 
     let mut broadcasts = 0;
     for broadcast_count in broadcast_rx {
       broadcasts += broadcast_count;
     }
-    println!("Total number of broadcasts msgs : {}", broadcasts);
+    //println!("Total number of broadcasts msgs : {}", broadcasts);
 
     for handle in handles {
       handle.join().unwrap();
