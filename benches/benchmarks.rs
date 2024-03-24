@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use project::{Comm, Processor};
+use Simulator::{Comm, Processor};
 
+// TODO: Implement benchmarks with changing matrix sizes and processor sizes
 pub fn mult_benchmark(c: &mut Criterion) {
     const MATRIX_WIDTH : usize = 100;
     const MATRIX_HEIGHT : usize = 100;
