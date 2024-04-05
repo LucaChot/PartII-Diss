@@ -88,6 +88,16 @@ impl Multiplicable for usize {
   }
 }
 
+impl Sendable for f64 {}
+impl Multiplicable for f64 {
+  fn start_c (matrix_a : &Matrix<Self>) -> Matrix<Self> {
+    matrix_a.iter().map(|row| row.iter().map(|_| 0.0).collect()).collect()
+  }
+  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self {
+    c + a * b
+  }
+}
+
 impl<T:Sendable> Sendable for Vec<Vec<T>> {}
 pub type Matrix<T> = Vec<Vec<T>>;
 
