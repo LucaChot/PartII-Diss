@@ -1,5 +1,5 @@
 use crate::broadcast::{BChannel, Sendable, Channel};
-use std::{time::{Duration, Instant}, cell::RefCell, sync::{Arc, Mutex}, thread::JoinHandle};
+use std::{time::{Duration, Instant}, cell::RefCell, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
 
 pub struct CoreComm<T:Sendable>{
   pub left : Channel<T>,
@@ -73,13 +73,13 @@ pub struct SubmatrixDim {
   pub height : usize,
 }
 
-pub struct Processor<T> {
+pub struct Processor<H : Sendable + 'static> {
   pub rows : usize,
   pub cols : usize,
-  pub handles : Vec<JoinHandle<T>>
+  pub handles : Vec<JoinHandle<H>>
 }
 
-impl<H> Processor<H> {
+impl<H : Sendable + 'static> Processor<H> {
   pub fn new(rows : usize, cols : usize) -> Processor<H>{
     Processor {rows , cols , handles : Vec::new() }
   }
@@ -197,6 +197,24 @@ impl<H> Processor<H> {
     
     Self::get_matrix_slices(matrix, &submatrices_dim)
   }
+
+  pub fn run_core<F> (&mut self, f: F) 
+  where
+      F: FnOnce() -> H + Send + 'static,
+  {
+        let handle = thread::spawn(f);
+        self.handles.push(handle);
+  }
+
+  pub fn collect_results (&mut self) -> Vec<H> {
+    let mut results = Vec::new();
+    while !self.handles.is_empty() {
+      let handle = self.handles.pop().unwrap();
+      results.push(handle.join().unwrap());
+    }
+    results
+  }
+      
 }
 
 

@@ -65,7 +65,8 @@ fn test_cannon_shift_a(){
     vec![ vec![8] ], vec![ vec![6] ], vec![ vec![7] ],
   ];
 
-  let result = Cannon::outer_setup_a(&matrix_a, (3, 3));
+  let processor : Processor<isize> = Processor::new(3,3);
+  let result = Cannon::outer_setup_a(&matrix_a, &processor);
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
@@ -86,7 +87,8 @@ fn test_cannon_shift_b(){
     vec![ vec![6] ], vec![ vec![1] ], vec![ vec![5] ],
   ];
 
-  let result = Cannon::outer_setup_b(&matrix_b, (3, 3));
+  let processor : Processor<isize> = Processor::new(3,3);
+  let result = Cannon::outer_setup_b(&matrix_b, &processor);
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
