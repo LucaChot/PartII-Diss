@@ -1,10 +1,10 @@
-use crate::{Processor, Comm};
+use crate::{Algorithm, Comm};
 use crate::types::{Matrix, Msg};
 
 #[test]
 #[ignore]
 fn test_hash_matrix_mult_api() {
-  let mut p : Processor<isize> = Processor::new(2,2);
+  let mut p : Algorithm<isize> = Algorithm::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -31,7 +31,7 @@ fn test_hash_matrix_mult_api() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult() {
-  let mut p : Processor<isize> = Processor::new(2,2);
+  let mut p : Algorithm<isize> = Algorithm::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -58,7 +58,7 @@ fn test_fox_otto_matrix_mult() {
 #[test]
 #[ignore]
 fn test_cannon_matrix_mult() {
-  let mut p : Processor<isize> = Processor::new(2,2);
+  let mut p : Algorithm<isize> = Algorithm::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -85,7 +85,7 @@ fn test_cannon_matrix_mult() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult_with_reduction() {
-  let mut p : Processor<Msg> = Processor::new(3,3);
+  let mut p : Algorithm<Msg> = Algorithm::new(3,3);
   
   // P matrix
   let p_matrix: Vec<Vec<usize>> = vec![
