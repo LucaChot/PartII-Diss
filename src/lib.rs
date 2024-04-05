@@ -11,9 +11,8 @@ pub use broadcast::Sendable;
 pub use types::{Matrix, Msg};
 use matrix_multiplication::*;
 pub use matrix_multiplication::Multiplicable;
-use processor::{CoreInfo,general_processor};
+use processor::{CoreInfo, Processor};
 
-use crate::processor::get_submatrices_dim;
 
 pub enum Comm {
   BROADCAST,
@@ -22,25 +21,26 @@ pub enum Comm {
 }
 
 
-pub struct Processor<T : Multiplicable + Sendable> {
+pub struct Algorithm {
   cores_height : usize, 
   cores_width : usize,
-  cores_info : VecDeque<CoreInfo<Matrix<T>>>,
+  processor : Processor<()>
 }
 
-impl<T : Multiplicable + Sendable + 'static> Processor<T>{
+impl Algorithm {
   pub fn new(p_height : usize, p_width: usize) -> Self {
-    Processor {
+    Algorithm {
       cores_height : p_height,
       cores_width : p_width,
-      cores_info : VecDeque::from(general_processor::<Matrix<T>>((p_height, p_width))),
+      processor : Processor::<()>::new(p_height, p_width),
     }
   }
 
-  fn collect_c(&self, recv : Receiver<(usize, usize, Matrix<T>)>,
-               matrix_c : &mut Matrix<T>, c_dim : (usize,usize)) {
-    let submatrices_dim = get_submatrices_dim((self.cores_height, self.cores_width),
-    c_dim);
+  fn collect_c<T : Sendable>(&self, recv : Receiver<(usize, usize, Matrix<T>)>,
+               matrix_c : &mut Matrix<T>) {
+    let m_rows = matrix_c.len();
+    let m_cols = matrix_c[0].len();
+    let submatrices_dim = self.processor.get_submatrices_dim(m_rows, m_cols);
 
     // Assign the final values to the W and P matrix
     for (i, j, c)  in recv {
@@ -54,10 +54,14 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     }
   }
   
-  fn parralel_mult_internal<F : ParallelMatMult> (&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>,
+  fn parralel_mult_internal<T, F>  (&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>,
                                                   _ : F)
-    -> Matrix<T> {
+    -> Matrix<T> 
+    where F : ParallelMatMult,
+          T : Multiplicable + Sendable + 'static {
     let processor_dim = (self.cores_height, self.cores_width);
+    let processor = Processor::<()>::new(self.cores_height, self.cores_width);
+    let mut cores_info : VecDeque<CoreInfo<Matrix<T>>> = VecDeque::from(processor.create_taurus());
     let mut handles = Vec::with_capacity(self.cores_width * self.cores_height);
     let dim = matrix_a.len();
     // Message channel to return values from each thread
@@ -65,15 +69,15 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     let (direct_tx, direct_rx) = mpsc::channel::<usize>();
     let (broadcast_tx, broadcast_rx) = mpsc::channel::<usize>();
 
-    let mut submatrices_a = F::outer_setup_a(&matrix_a, processor_dim);
-    let mut submatrices_b = F::outer_setup_b(&matrix_b, processor_dim);
+    let mut submatrices_a = F::outer_setup_a(&matrix_a, &processor);
+    let mut submatrices_b = F::outer_setup_b(&matrix_b, &processor);
     let mut matrix_c = T::start_c(&matrix_a);
-    let mut submatrices_c = F::outer_setup_c(&matrix_c, processor_dim);
+    let mut submatrices_c = F::outer_setup_c(&matrix_c, &processor);
 
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let core_info = self.cores_info.pop_front().unwrap();
+        let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let result_tx = main_tx.clone();
         let dir_tx = direct_tx.clone();
@@ -100,7 +104,7 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     drop(direct_tx);
     drop(broadcast_tx);
 
-    self.collect_c(main_rx, &mut matrix_c, (dim,dim));
+    self.collect_c(main_rx, &mut matrix_c);
 
     let mut directs = 0;
     for direct_count in direct_rx {
@@ -121,12 +125,16 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     matrix_c
   }   
 
-  fn parralel_square_internal<F : ParallelMatMult> (&mut self, matrix_a : Matrix<T>,
+  fn parralel_square_internal<F, T> (&mut self, matrix_a : Matrix<T>,
                                                     outer_iterations : usize,
                                                   _ : F)
-    -> Matrix<T> {
+    -> Matrix<T> 
+    where F : ParallelMatMult,
+          T : Multiplicable + Sendable + 'static {
                                                   
     let processor_dim = (self.cores_height, self.cores_width);
+    let processor = Processor::<()>::new(self.cores_height, self.cores_width);
+    let mut cores_info : VecDeque<CoreInfo<Matrix<T>>> = VecDeque::from(processor.create_taurus());
     let mut handles = Vec::with_capacity(self.cores_width * self.cores_height);
     let dim = matrix_a.len();
     // Message channel to return values from each thread
@@ -134,16 +142,16 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     let (direct_tx, direct_rx) = mpsc::channel::<usize>();
     let (broadcast_tx, broadcast_rx) = mpsc::channel::<usize>();
 
-    let mut submatrices_a = F::outer_setup_a(&matrix_a, processor_dim);
-    let mut submatrices_b = F::outer_setup_b(&matrix_a, processor_dim);
+    let mut submatrices_a = F::outer_setup_a(&matrix_a, &processor);
+    let mut submatrices_b = F::outer_setup_b(&matrix_a, &processor);
     let mut matrix_c = T::start_c(&matrix_a);
-    let mut submatrices_c = F::outer_setup_c(&matrix_c, processor_dim);
+    let mut submatrices_c = F::outer_setup_c(&matrix_c, &processor);
 
 
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let core_info = self.cores_info.pop_front().unwrap();
+        let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let result_tx = main_tx.clone();
         let dir_tx = direct_tx.clone();
@@ -174,7 +182,7 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     drop(direct_tx);
     drop(broadcast_tx);
 
-    self.collect_c(main_rx, &mut matrix_c, (dim,dim));
+    self.collect_c(main_rx, &mut matrix_c);
 
     let mut directs = 0;
     for direct_count in direct_rx {
@@ -196,8 +204,9 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
   }
 
 
-  pub fn parallel_mult(&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
-                   comm : Comm) -> Matrix<T> {
+  pub fn parallel_mult<T>(&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                   comm : Comm) -> Matrix<T> 
+    where T : Multiplicable + Sendable + 'static {
     match comm {
       Comm::BROADCAST => self.parralel_mult_internal(matrix_a,
                                           matrix_b,
@@ -211,9 +220,10 @@ impl<T : Multiplicable + Sendable + 'static> Processor<T>{
     }
   }
 
-  pub fn parallel_square(&mut self, matrix_a : Matrix<T>,
+  pub fn parallel_square<T>(&mut self, matrix_a : Matrix<T>,
                          iterations : usize,
-                   comm : Comm) -> Matrix<T> {
+                   comm : Comm) -> Matrix<T> 
+    where T : Multiplicable + Sendable + 'static {
     match comm {
       Comm::BROADCAST => self.parralel_square_internal(matrix_a,
                                                        iterations,
