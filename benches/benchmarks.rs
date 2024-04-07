@@ -3,8 +3,8 @@ use Simulator::{Comm, Algorithm};
 
 // TODO: Implement benchmarks with changing matrix sizes and processor sizes
 pub fn mult_benchmark(c: &mut Criterion) {
-    const MATRIX_WIDTH : usize = 100;
-    const MATRIX_HEIGHT : usize = 100;
+    const MATRIX_WIDTH : usize = 125;
+    const MATRIX_HEIGHT : usize = 125;
     const PROCESSOR_WIDTH : usize = 10;
     const PROCESSOR_HEIGHT : usize = 10;
     c.bench_function("Hash Mult", |b| b.iter(|| {
@@ -28,8 +28,8 @@ pub fn mult_benchmark(c: &mut Criterion) {
 }
 
 pub fn square_benchmark(c: &mut Criterion) {
-    const MATRIX_WIDTH : usize = 100;
-    const MATRIX_HEIGHT : usize = 100;
+    const MATRIX_WIDTH : usize = 125;
+    const MATRIX_HEIGHT : usize = 125;
     const PROCESSOR_WIDTH : usize = 10;
     const PROCESSOR_HEIGHT : usize = 10;
     c.bench_function("Hash Square", |b| b.iter(|| {
@@ -87,15 +87,13 @@ pub fn bench_processors(c : &mut Criterion) {
   let mut group = c.benchmark_group("Processors");
   const MATRIX_WIDTH : usize = 50;
   const MATRIX_HEIGHT : usize = 50;
-  for processor_side in 3..10 {
-    group.bench_with_input(BenchmarkId::new("HASH vs PROC", processor_side), &processor_side, 
+  for processor_side in 3..11 {
+    group.bench_with_input(BenchmarkId::new("HASH", processor_side), &processor_side, 
       |b, processor_side| b.iter(|| {
-        let a = vec![vec![0; MATRIX_WIDTH]; MATRIX_HEIGHT];
-        let b = vec![vec![0; MATRIX_WIDTH]; MATRIX_HEIGHT];
+        let a = vec![vec![2; MATRIX_WIDTH]; MATRIX_HEIGHT];
         let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
         let mut p : Algorithm<isize> = Algorithm::new(*processor_side, *processor_side);
-        dbg!("DONE");
-        p.parallel_mult(black_box(a),black_box(b),black_box(Comm::BROADCAST))
+        p.parallel_square(black_box(a),black_box(iterations),black_box(Comm::BROADCAST))
       }));
     group.bench_with_input(BenchmarkId::new("FOXOTTO", processor_side), &processor_side, 
       |b, processor_side| b.iter(|| {
