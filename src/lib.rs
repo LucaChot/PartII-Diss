@@ -103,7 +103,6 @@ where T : Multiplicable + Sendable + 'static {
     let mut matrix_c = T::start_c(&matrix_a);
     let mut submatrices_c = F::outer_setup_c(&matrix_c, &self.processor);
 
-
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels

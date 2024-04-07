@@ -1,6 +1,6 @@
 use crate::{Algorithm, Comm};
 use crate::types::{Matrix, Msg};
-use criterion::black_box;
+
 #[test]
 #[ignore]
 fn test_hash_matrix_mult_api() {
@@ -136,18 +136,4 @@ fn test_fox_otto_matrix_mult_with_reduction() {
     vec![-1,-1,-1,-1,-1,-1, 0],
   ]);
 
-}
-
-#[test]
-fn debug_error() {
-  const MATRIX_WIDTH : usize = 9;
-  const MATRIX_HEIGHT : usize = 9;
-  const PROCESSOR_WIDTH : usize = 4;
-  const PROCESSOR_HEIGHT : usize = 4;
-  let a = vec![vec![2; MATRIX_WIDTH]; MATRIX_HEIGHT];
-  let b = vec![vec![2; MATRIX_WIDTH]; MATRIX_HEIGHT];
-  let mut p : Algorithm<isize> = Algorithm::new(PROCESSOR_HEIGHT,PROCESSOR_WIDTH);
-  let y = p.parallel_mult(black_box(a),black_box(b),black_box(Comm::BROADCAST));
-  dbg!(y.len(), y[0].len());
-  panic!();
 }
