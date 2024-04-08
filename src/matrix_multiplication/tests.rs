@@ -12,11 +12,7 @@ fn test_serial_matrix_multiplication_square(){
     vec![3,4]
   ];
 
-  let matrix_c : Matrix<isize> = vec![
-    vec![0,0],
-    vec![0,0]
-  ];
-
+  let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
   let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
@@ -37,11 +33,7 @@ fn test_serial_matrix_multiplication_non_square(){
     vec![3,4]
   ];
 
-  let matrix_c : Matrix<isize> = vec![
-    vec![0,0],
-    vec![0,0],
-    vec![0,0]
-  ];
+  let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
 
   let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
 

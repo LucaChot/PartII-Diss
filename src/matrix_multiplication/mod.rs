@@ -4,7 +4,7 @@ use crate::broadcast::Sendable;
 use crate::types::Matrix;
 
 pub trait Multiplicable { 
-  fn start_c (matrix_a : &Matrix<Self>) -> Matrix<Self> where Self: Sized;
+  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> where Self: Sized;
   fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self;
 }
 

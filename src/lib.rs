@@ -62,7 +62,7 @@ where T : Multiplicable + Sendable + 'static {
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, &self.processor);
     let mut submatrices_b = F::outer_setup_b(&matrix_b, &self.processor);
-    let mut matrix_c = T::start_c(&matrix_a);
+    let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_b[0].len());
     let mut submatrices_c = F::outer_setup_c(&matrix_c, &self.processor);
 
     for i in 0..self.cores_height {
@@ -100,7 +100,7 @@ where T : Multiplicable + Sendable + 'static {
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, &self.processor);
     let mut submatrices_b = F::outer_setup_b(&matrix_a, &self.processor);
-    let mut matrix_c = T::start_c(&matrix_a);
+    let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_a.len());
     let mut submatrices_c = F::outer_setup_c(&matrix_c, &self.processor);
 
     for i in 0..self.cores_height {
