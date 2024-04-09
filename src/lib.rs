@@ -9,7 +9,7 @@ pub use broadcast::Sendable;
 pub use types::{Matrix, Msg};
 use matrix_multiplication::*;
 pub use matrix_multiplication::Multiplicable;
-use processor::{CoreInfo, Processor};
+use processor::{TaurusCoreInfo, Processor};
 
 
 pub enum Comm {
@@ -23,7 +23,7 @@ pub struct Algorithm<T>
 where T : Multiplicable + Sendable + 'static {
   cores_height : usize, 
   cores_width : usize,
-  processor : Processor<(usize, usize, Matrix<T>)>
+  processor : Processor<(usize, usize, Matrix<T>),Matrix<T>>
 }
 
 impl<T> Algorithm<T> 
@@ -58,7 +58,7 @@ where T : Multiplicable + Sendable + 'static {
                                                   _ : F)
     -> Matrix<T> 
     where F : ParallelMatMult {
-    let mut cores_info : VecDeque<CoreInfo<Matrix<T>>> = VecDeque::from(self.processor.create_taurus());
+    let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.create_taurus());
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, &self.processor);
     let mut submatrices_b = F::outer_setup_b(&matrix_b, &self.processor);
@@ -68,7 +68,7 @@ where T : Multiplicable + Sendable + 'static {
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let core_info = cores_info.pop_front().unwrap();
+        let mut core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let iterations = self.cores_height;
 
@@ -78,8 +78,8 @@ where T : Multiplicable + Sendable + 'static {
         let c = submatrices_c.pop_front().unwrap();
 
         let core_function = move || {
-          let c = F::matrix_mult(a, b, c, iterations, &core_info);
-          (i,j,c)
+          let c = F::matrix_mult(a, b, c, iterations, &mut core_info);
+          ((i,j,c), core_info)
         };
 
         self.processor.run_core(core_function);
@@ -96,7 +96,7 @@ where T : Multiplicable + Sendable + 'static {
                                                   _ : F)
     -> Matrix<T> 
     where F : ParallelMatMult {
-    let mut cores_info : VecDeque<CoreInfo<Matrix<T>>> = VecDeque::from(self.processor.create_taurus());
+    let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.create_taurus());
 
     let mut submatrices_a = F::outer_setup_a(&matrix_a, &self.processor);
     let mut submatrices_b = F::outer_setup_b(&matrix_a, &self.processor);
@@ -106,7 +106,7 @@ where T : Multiplicable + Sendable + 'static {
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let core_info = cores_info.pop_front().unwrap();
+        let mut core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let inner_iterations = self.cores_height;
 
@@ -117,11 +117,11 @@ where T : Multiplicable + Sendable + 'static {
 
         let core_function = move || {
           for _ in 0..outer_iterations{
-            c = F::matrix_mult(a, b, c, inner_iterations, &core_info);
-            a = F::inner_setup_a(c.clone(), &core_info);
-            b = F::inner_setup_b(c.clone(), &core_info);
+            c = F::matrix_mult(a, b, c, inner_iterations, &mut core_info);
+            a = F::inner_setup_a(c.clone(), &mut core_info);
+            b = F::inner_setup_b(c.clone(), &mut core_info);
           }
-          (i,j,c)
+          ((i,j,c), core_info)
         };
 
         self.processor.run_core(core_function);

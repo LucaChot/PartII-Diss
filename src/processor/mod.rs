@@ -1,13 +1,13 @@
 use crate::broadcast::{BChannel, Sendable, Channel};
-use std::{time::{Duration, Instant}, cell::RefCell, sync::{Arc, Mutex}, thread::{JoinHandle, self}};
+use std::{time::{Duration, Instant}, thread::{JoinHandle, self}};
 
-pub struct CoreComm<T:Sendable>{
-  pub left : Channel<T>,
-  pub right : Channel<T>,
-  pub up : Channel<T>,
-  pub down : Channel<T>,
-  pub row : BChannel<T>,
-  pub col : BChannel<T>,
+struct CoreComm<T:Sendable>{
+  left : Channel<(T, Duration)>,
+  right : Channel<(T, Duration)>,
+  up : Channel<(T, Duration)>,
+  down : Channel<(T, Duration)>,
+  row : BChannel<(T, Duration)>,
+  col : BChannel<(T, Duration)>,
 }
 
 impl<T : Sendable> CoreComm<T> {
@@ -21,35 +21,31 @@ impl<T : Sendable> CoreComm<T> {
       col: BChannel::empty()
     }
   } 
-
-  pub fn num_broadcasts(&self) -> usize {
-    self.row.get_sent() + self.col.get_sent()
-  }
-
-  pub fn num_direct(&self) -> usize {
-    self.left.get_sent() + self.right.get_sent() + self.up.get_sent() + self.down.get_sent()
-  }
 }
 
 #[derive(Clone)]
-pub struct CoreDebug {
+struct CoreDebug {
+  direct_count : usize,
+  broadcast_count : usize,
   last_time : Instant,
   total_elapsed : Duration,
 }
 
 impl CoreDebug {
-  pub fn new() -> CoreDebug {
+  fn new() -> CoreDebug {
     CoreDebug { 
+      direct_count : 0,
+      broadcast_count : 0,
       last_time: Instant::now(),
       total_elapsed: Duration::ZERO,
     }
 
   }
-  pub fn get_elapsed(&self) -> Duration {
+  fn get_elapsed(&self) -> Duration {
     self.last_time.elapsed() + self.total_elapsed
   }
 
-  pub fn update_elapsed(&mut self, outer : Duration) {
+  fn update_elapsed(&mut self, outer : Duration) {
     let current = self.get_elapsed();
     if current < outer {
       self.last_time = Instant::now();
@@ -58,12 +54,75 @@ impl CoreDebug {
   }
 }
 
-pub struct CoreInfo<T : Sendable> {
+pub enum Taurus {
+  LEFT,
+  RIGHT,
+  UP,
+  DOWN,
+  ROW,
+  COL,
+}
+
+pub trait CoreInfo<T : Sendable> {
+  type ChannelOption;
+
+  fn send(&mut self, ch_option : Self::ChannelOption, data : T);
+  fn recv(&mut self, ch_option : Self::ChannelOption) -> T;
+}
+
+pub struct TaurusCoreInfo<T : Sendable> {
   pub row : usize,
   pub col : usize,
-  pub core_comm : CoreComm<T>,
-  core_debug : Arc<Mutex<RefCell<CoreDebug>>>,
+  core_comm : CoreComm<T>,
+  core_debug : CoreDebug,
 } 
+
+impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
+  type ChannelOption = Taurus;
+
+  fn send(&mut self, ch_option : Self::ChannelOption, data : T){
+    let elapsed =  self.core_debug.get_elapsed();
+    match ch_option {
+      Taurus::LEFT => {
+        self.core_comm.left.send((data,elapsed));
+        self.core_debug.direct_count += 1;
+      },
+      Taurus::RIGHT => {
+        self.core_comm.right.send((data,elapsed));
+        self.core_debug.direct_count += 1;
+      },
+      Taurus::UP => {
+        self.core_comm.up.send((data,elapsed));
+        self.core_debug.direct_count += 1;
+      },
+      Taurus::DOWN => {
+        self.core_comm.down.send((data,elapsed));
+        self.core_debug.direct_count += 1;
+      },
+      Taurus::ROW => {
+        self.core_comm.row.send((data,elapsed));
+        self.core_debug.broadcast_count += 1;
+      },
+      Taurus::COL => {
+        self.core_comm.col.send((data,elapsed));
+        self.core_debug.broadcast_count += 1;
+      },
+    }
+  }
+
+  fn recv(&mut self, ch_option : Self::ChannelOption) -> T{
+    let (data, recv_time) = match ch_option {
+      Taurus::LEFT => self.core_comm.left.recv(),
+      Taurus::RIGHT => self.core_comm.right.recv(),
+      Taurus::UP => self.core_comm.up.recv(),
+      Taurus::DOWN => self.core_comm.down.recv(),
+      Taurus::ROW => self.core_comm.row.recv(),
+      Taurus::COL => self.core_comm.col.recv(),
+    };
+    self.core_debug.update_elapsed(recv_time);
+    data
+  }
+}
 
 #[derive(Copy,Clone,Debug, PartialEq)]
 pub struct SubmatrixDim {
@@ -73,65 +132,56 @@ pub struct SubmatrixDim {
   pub height : usize,
 }
 
-pub struct Processor<H : Sendable + 'static> {
+pub struct Processor<H : Sendable + 'static, T : Sendable + 'static> {
   pub rows : usize,
   pub cols : usize,
-  pub handles : Vec<JoinHandle<H>>
+  handles : Vec<JoinHandle<(H, TaurusCoreInfo<T>)>>,
+  debugs : Vec<CoreDebug>
 }
 
-impl<H : Sendable + 'static> Processor<H> {
-  pub fn new(rows : usize, cols : usize) -> Processor<H>{
-    Processor {rows , cols , handles : Vec::new() }
+impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
+  pub fn new(rows : usize, cols : usize) -> Processor<H, T>{
+    Processor {rows , cols , handles : Vec::new(), debugs : Vec::new() }
   }
 
-  pub fn create_taurus<T: Sendable>(&self) -> Vec<CoreInfo<T>> {
+  pub fn create_taurus(&self) -> Vec<TaurusCoreInfo<T>> {
       let num_cores = self.cols * self.rows;
-      let mut cores : Vec<CoreInfo<T>> = Vec::with_capacity(num_cores);
+      let mut cores : Vec<TaurusCoreInfo<T>> = Vec::with_capacity(num_cores);
       for row in 0..self.rows {
         for col in 0..self.cols {
-          cores.push(CoreInfo{ row, col, core_comm : CoreComm::new(), 
-            core_debug : Arc::new(Mutex::new(RefCell::new(CoreDebug::new())))
+          cores.push(TaurusCoreInfo{ row, col, core_comm : CoreComm::new(), 
+            core_debug : CoreDebug::new()
           })
         }
       }
 
     for i in 0..self.rows {
-      let mut bchannels : Vec<BChannel<T>> = BChannel::new(self.cols);
+      let mut bchannels : Vec<BChannel<(T, Duration)>> = BChannel::new(self.cols);
       for step in 0..self.cols {
         let core_index = self.rows * i + step;
-        let mut bchannel = bchannels.pop().unwrap();
-        bchannel.set_core_debug(Arc::clone(&cores[core_index].core_debug));
-        cores[core_index].core_comm.row = bchannel;
+        cores[core_index].core_comm.row = bchannels.pop().unwrap();
       }
     }
 
     for i in 0..self.cols {
-      let mut bchannels : Vec<BChannel<T>> = BChannel::new(self.rows);
+      let mut bchannels : Vec<BChannel<(T, Duration)>> = BChannel::new(self.rows);
       for step in 0..self.rows {
         let core_index = self.rows * step + i;
-        let mut bchannel = bchannels.pop().unwrap();
-        bchannel.set_core_debug(Arc::clone(&cores[core_index].core_debug));
-        cores[core_index].core_comm.col = bchannel;
+        cores[core_index].core_comm.col = bchannels.pop().unwrap();
       }
     }
     
     for i in 0..num_cores {
-      let (mut up, mut down) = Channel::new();
+      let (up, down) = Channel::new();
       let up_index = i;
       let down_index = ( num_cores + i - self.cols ) % num_cores;
-
-      up.set_core_debug(Arc::clone(&cores[up_index].core_debug));
-      down.set_core_debug(Arc::clone(&cores[down_index].core_debug));
 
       cores[up_index].core_comm.up = up;
       cores[down_index].core_comm.down = down; 
 
-      let (mut right, mut left) = Channel::new();
+      let (right, left) = Channel::new();
       let right_index = i;
       let left_index = i - ( i % self.cols ) + ( (i +  1) % self.cols );
-
-      right.set_core_debug(Arc::clone(&cores[right_index].core_debug));
-      left.set_core_debug(Arc::clone(&cores[left_index].core_debug));
 
       cores[right_index].core_comm.right = right;
       cores[left_index].core_comm.left = left; 
@@ -181,7 +231,7 @@ impl<H : Sendable + 'static> Processor<H> {
       }).1
   }
 
-  fn get_matrix_slices<T:Clone>(matrix : &Vec<Vec<T>>, dims : &Vec<SubmatrixDim>) -> Vec<Vec<Vec<T>>> {
+  fn get_matrix_slices<K:Clone>(matrix : &Vec<Vec<K>>, dims : &Vec<SubmatrixDim>) -> Vec<Vec<Vec<K>>> {
     dims.iter().map(|&dim| 
       matrix.iter().skip(dim.start_row).take(dim.height)
          .map(|row| row.iter().skip(dim.start_col).take(dim.width).cloned().collect::<Vec<_>>())
@@ -189,7 +239,7 @@ impl<H : Sendable + 'static> Processor<H> {
     ).collect::<Vec<_>>()
   }
 
-  pub fn get_submatrices<T: Clone>(&self, matrix : &Vec<Vec<T>>) -> Vec<Vec<Vec<T>>> {
+  pub fn get_submatrices<K: Clone>(&self, matrix : &Vec<Vec<K>>) -> Vec<Vec<Vec<K>>> {
     let matrix_rows = matrix.len();
     let matrix_cols = matrix[0].len();
 
@@ -200,7 +250,7 @@ impl<H : Sendable + 'static> Processor<H> {
 
   pub fn run_core<F> (&mut self, f: F) 
   where
-      F: FnOnce() -> H + Send + 'static,
+      F: FnOnce() -> (H, TaurusCoreInfo<T>) + Send + 'static,
   {
         let handle = thread::spawn(f);
         self.handles.push(handle);
@@ -210,7 +260,9 @@ impl<H : Sendable + 'static> Processor<H> {
     let mut results = Vec::new();
     while !self.handles.is_empty() {
       let handle = self.handles.pop().unwrap();
-      results.push(handle.join().unwrap());
+      let (result, core) = handle.join().unwrap();
+      self.debugs.push(core.core_debug);
+      results.push(result);
     }
     results
   }

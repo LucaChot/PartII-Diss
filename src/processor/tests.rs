@@ -1,91 +1,90 @@
 use super::*;
-use std::{thread::sleep, rc::Rc};
+use std::thread::sleep;
 
 #[test]
 fn general_correct_length(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let bchannels = processor.create_taurus::<i32>();
+  let processor : Processor<i32,i32> = Processor::new(2,2);
+  let bchannels = processor.create_taurus();
   assert_eq!(bchannels.len(), 4);
 }
 
 #[test]
 fn general_correct_connection(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let cores = processor.create_taurus::<i32>();
+  let processor : Processor<i32, i32> = Processor::new(2,2);
+  let mut cores = processor.create_taurus();
   // Check that horizontal broadcast works
-  cores[0].core_comm.up.send(1);
-  assert_eq!(cores[2].core_comm.down.recv(), 1);
+  cores[0].send(Taurus::UP,1);
+  assert_eq!(cores[2].recv(Taurus::DOWN), 1);
 
-  cores[0].core_comm.right.send(2);
-  assert_eq!(cores[1].core_comm.left.recv(), 2);
+  cores[0].send(Taurus::RIGHT,2);
+  assert_eq!(cores[1].recv(Taurus::LEFT), 2);
+
+  cores[0].send(Taurus::DOWN,3);
+  assert_eq!(cores[2].recv(Taurus::UP), 3);
+
+  cores[0].send(Taurus::LEFT,4);
+  assert_eq!(cores[1].recv(Taurus::RIGHT), 4);
+
+  cores[3].send(Taurus::UP,1);
+  assert_eq!(cores[1].recv(Taurus::DOWN), 1);
+
+  cores[3].send(Taurus::RIGHT,2);
+  assert_eq!(cores[2].recv(Taurus::LEFT), 2);
 
   // Check that vertical broadcast works
-  cores[0].core_comm.down.send(3);
-  assert_eq!(cores[2].core_comm.up.recv(), 3);
+  cores[3].send(Taurus::DOWN,3);
+  assert_eq!(cores[1].recv(Taurus::UP), 3);
 
-  cores[0].core_comm.left.send(4);
-  assert_eq!(cores[1].core_comm.right.recv(), 4);
-
-  cores[3].core_comm.up.send(1);
-  assert_eq!(cores[1].core_comm.down.recv(), 1);
-
-  cores[3].core_comm.right.send(2);
-  assert_eq!(cores[2].core_comm.left.recv(), 2);
-
-  // Check that vertical broadcast works
-  cores[3].core_comm.down.send(3);
-  assert_eq!(cores[1].core_comm.up.recv(), 3);
-
-  cores[3].core_comm.left.send(4);
-  assert_eq!(cores[2].core_comm.right.recv(), 4);
+  cores[3].send(Taurus::LEFT,4);
+  assert_eq!(cores[2].recv(Taurus::RIGHT), 4);
 }
 
 #[test]
 fn general_correct_broadcast(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let cores = processor.create_taurus::<i32>();
+  let processor : Processor<i32,i32> = Processor::new(2,2);
+  let mut cores = processor.create_taurus();
 
   // Check that horizontal broadcast works
-  cores[0].core_comm.row.send(0);
-  assert_eq!(cores[0].core_comm.row.recv(), 0);
-  assert_eq!(cores[1].core_comm.row.recv(), 0);
+  cores[0].send(Taurus::ROW,0);
+  assert_eq!(cores[0].recv(Taurus::ROW), 0);
+  assert_eq!(cores[1].recv(Taurus::ROW), 0);
 
-  cores[3].core_comm.row.send(1);
-  assert_eq!(cores[2].core_comm.row.recv(), 1);
-  assert_eq!(cores[3].core_comm.row.recv(), 1);
+  cores[3].send(Taurus::ROW,1);
+  assert_eq!(cores[2].recv(Taurus::ROW), 1);
+  assert_eq!(cores[3].recv(Taurus::ROW), 1);
 
   // Check that vertical broadcast works
-  cores[2].core_comm.col.send(2);
-  assert_eq!(cores[0].core_comm.col.recv(), 2);
-  assert_eq!(cores[2].core_comm.col.recv(), 2);
+  cores[2].send(Taurus::COL,2);
+  assert_eq!(cores[0].recv(Taurus::COL), 2);
+  assert_eq!(cores[2].recv(Taurus::COL), 2);
 
-  cores[1].core_comm.col.send(3);
-  assert_eq!(cores[1].core_comm.col.recv(), 3);
-  assert_eq!(cores[3].core_comm.col.recv(), 3);
+  cores[1].send(Taurus::COL,3);
+  assert_eq!(cores[1].recv(Taurus::COL), 3);
+  assert_eq!(cores[3].recv(Taurus::COL), 3);
 }
 // ------------------------------------------------------------
 
 #[test]
 fn get_submatrices_dim_along_axis_more_processors() {
-  let submatrices_dims = Processor::<i32>::get_submatrices_dim_along_axis(6, 4);
+  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 4);
   assert_eq!(submatrices_dims, vec![1,1,1,1,0,0]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_equal_size() {
-  let submatrices_dims = Processor::<i32>::get_submatrices_dim_along_axis(4, 4);
+  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(4, 4);
   assert_eq!(submatrices_dims, vec![1,1,1,1]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_less_processors() {
-  let submatrices_dims = Processor::<i32>::get_submatrices_dim_along_axis(6, 17);
+  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 17);
   assert_eq!(submatrices_dims, vec![3,3,3,3,3,2]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_less_processors_divisible(){
-  let submatrices_dims = Processor::<i32>::get_submatrices_dim_along_axis(6, 18);
+  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 18);
   assert_eq!(submatrices_dims, vec![3,3,3,3,3,3]);
 }
 
@@ -93,7 +92,7 @@ fn get_submatrices_dim_along_axis_less_processors_divisible(){
 
 #[test]
 fn get_submatrices_dim_square_equal(){
-  let processor : Processor<i32> = Processor::new(2,2);
+  let processor : Processor<i32,i32> = Processor::new(2,2);
   let submatrices_dims = processor.get_submatrices_dim(2,2);
   assert_eq!(submatrices_dims[0],
     SubmatrixDim {
@@ -127,7 +126,7 @@ fn get_submatrices_dim_square_equal(){
 
 #[test]
 fn get_submatrices_dim_square_diff(){
-  let processor : Processor<i32> = Processor::new(2,2);
+  let processor : Processor<i32,i32> = Processor::new(2,2);
   let submatrices_dims = processor.get_submatrices_dim(3,3);
   assert_eq!(submatrices_dims[0],
     SubmatrixDim {
@@ -195,7 +194,7 @@ fn get_matrix_slices_equal_dim(){
       height : 2,
     },
   ];
-  let submatrices_dims = Processor::<i32>::get_matrix_slices(&m, &dims);
+  let submatrices_dims = Processor::<i32,i32>::get_matrix_slices(&m, &dims);
   assert_eq!(submatrices_dims, 
     vec![
       vec![
@@ -251,7 +250,7 @@ fn get_matrix_slices_diff_dim(){
       height : 1,
     },
   ];
-  let submatrices_dims = Processor::<i32>::get_matrix_slices(&m, &dims);
+  let submatrices_dims = Processor::<i32,i32>::get_matrix_slices(&m, &dims);
   assert_eq!(submatrices_dims, 
     vec![
       vec![
@@ -281,7 +280,7 @@ fn get_submatrices_square_equal(){
     vec![1,2],
     vec![3,4]
   ];
-  let processor : Processor<i32> = Processor::new(2,2);
+  let processor : Processor<i32,i32> = Processor::new(2,2);
   let submatrices = processor.get_submatrices(&m);
   assert_eq!(submatrices, 
     vec![
@@ -307,7 +306,7 @@ fn get_submatrices_square_diff(){
     vec![4,5,6],
     vec![7,8,9]
   ];
-  let processor : Processor<i32> = Processor::new(2,2);
+  let processor : Processor<i32,i32> = Processor::new(2,2);
   let submatrices = processor.get_submatrices(&m);
   assert_eq!(submatrices, 
     vec![
@@ -332,48 +331,48 @@ fn get_submatrices_square_diff(){
 
 #[test]
 fn test_core_debug_time_progresses(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let cores = processor.create_taurus::<i32>();
+  let processor : Processor<i32,i32> = Processor::new(2,2);
+  let mut cores = processor.create_taurus();
   // Check that horizontal broadcast works
   
-  dbg!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed());
-  cores[0].core_comm.up.send(1);
+  dbg!(cores[2].core_debug.get_elapsed());
+  cores[0].send(Taurus::UP,1);
 
   sleep(Duration::new(2, 0));
-  assert_eq!(cores[2].core_comm.down.recv(), 1);
-  assert!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_millis() >=  2000);
+  assert_eq!(cores[2].recv(Taurus::DOWN), 1);
+  assert!(cores[2].core_debug.get_elapsed().as_millis() >=  2000);
 }
 
 #[test]
 fn test_core_debug_time_received_is_less(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let cores = processor.create_taurus::<i32>();
+  let processor : Processor<i32,i32> = Processor::new(2,2);
+  let mut cores = processor.create_taurus();
   // Check that horizontal broadcast works
   
-  let true_elapsed = cores[2].core_debug.lock().unwrap().borrow().get_elapsed();
-  cores[2].core_debug.lock().unwrap().borrow_mut().update_elapsed(true_elapsed + Duration::new(2,0));
-  cores[0].core_comm.up.send(1);
-  assert!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_millis() >= 2000);
-  assert_eq!(cores[2].core_comm.down.recv(), 1);
-  assert!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_millis() >= 2000);
+  let true_elapsed = cores[2].core_debug.get_elapsed();
+  cores[2].core_debug.update_elapsed(true_elapsed + Duration::new(2,0));
+  cores[0].send(Taurus::UP,1);
+  assert!(cores[2].core_debug.get_elapsed().as_millis() >= 2000);
+  assert_eq!(cores[2].recv(Taurus::DOWN), 1);
+  assert!(cores[2].core_debug.get_elapsed().as_millis() >= 2000);
 }
 
 #[test]
 fn test_core_debug_time_received_is_greater(){
-  let processor : Processor<i32> = Processor::new(2,2);
-  let cores = processor.create_taurus::<i32>();
+  let processor : Processor<i32,i32> = Processor::new(2,2);
+  let mut cores = processor.create_taurus();
   // Check that horizontal broadcast works
   
-  let true_elapsed = cores[0].core_debug.lock().unwrap().borrow().get_elapsed();
-  cores[0].core_debug.lock().unwrap().borrow_mut().update_elapsed(true_elapsed + Duration::new(2,0));
-  dbg!(&cores[0].core_debug.lock().unwrap().borrow().get_elapsed().as_nanos());
+  let true_elapsed = cores[0].core_debug.get_elapsed();
+  cores[0].core_debug.update_elapsed(true_elapsed + Duration::new(2,0));
+  dbg!(&cores[0].core_debug.get_elapsed().as_nanos());
 
-  cores[0].core_comm.col.send(1);
+  cores[0].send(Taurus::COL,1);
   
-  assert!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_millis() < 1000);
-  dbg!(&cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_nanos());
-  assert_eq!(cores[2].core_comm.col.recv(), 1);
-  dbg!(&cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_nanos());
-  assert!(cores[2].core_debug.lock().unwrap().borrow().get_elapsed().as_millis() >= 2000);
+  assert!(cores[2].core_debug.get_elapsed().as_millis() < 1000);
+  dbg!(&cores[2].core_debug.get_elapsed().as_nanos());
+  assert_eq!(cores[2].recv(Taurus::COL), 1);
+  dbg!(&cores[2].core_debug.get_elapsed().as_nanos());
+  assert!(cores[2].core_debug.get_elapsed().as_millis() >= 2000);
 }
 
