@@ -1,4 +1,5 @@
 use std::fmt::{Debug,Display,Formatter,Result};
+use std::time::Duration;
 use crate::Sendable;
 use crate::Multiplicable;
 
@@ -101,4 +102,7 @@ impl Multiplicable for f64 {
 impl<T:Sendable> Sendable for Vec<Vec<T>> {}
 pub type Matrix<T> = Vec<Vec<T>>;
 
+impl Sendable for Duration {}
+
+impl<X:Sendable, Y:Sendable> Sendable for (X,Y) {}
 impl<X:Sendable, Y:Sendable, Z:Sendable> Sendable for (X,Y,Z) {}

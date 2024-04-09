@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use crate::processor::{CoreInfo, Processor};
+use crate::processor::{TaurusCoreInfo, Processor, CoreInfo, Taurus};
 use crate::broadcast::Sendable;
 use crate::types::Matrix;
 
@@ -28,28 +28,28 @@ fn serial_matrix_multiplication<T : Multiplicable + Clone>(matrix_a : &Matrix<T>
 
 //TODO : Implement default
 pub trait ParallelMatMult {
-  fn outer_setup_a<T : Clone, H : Sendable>(matrix_a : &Matrix<T>,
-                                 processor : &Processor<H>) -> VecDeque<Matrix<T>> {
+  fn outer_setup_a<K : Clone, H : Sendable, T : Sendable>(matrix_a : &Matrix<K>,
+                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
     VecDeque::from(processor.get_submatrices(matrix_a))
   }
-  fn outer_setup_b<T : Clone, H : Sendable>(matrix_b : &Matrix<T>,
-                                 processor : &Processor<H>) -> VecDeque<Matrix<T>> {
+  fn outer_setup_b<K : Clone, H : Sendable, T : Sendable>(matrix_b : &Matrix<K>,
+                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
     VecDeque::from(processor.get_submatrices(matrix_b))
   }
-  fn outer_setup_c<T : Clone, H : Sendable>(matrix_c : &Matrix<T>,
-                                 processor : &Processor<H>) -> VecDeque<Matrix<T>> {
+  fn outer_setup_c<K : Clone, H : Sendable, T : Sendable>(matrix_c : &Matrix<K>,
+                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
     VecDeque::from(processor.get_submatrices(matrix_c))
   }
-  fn inner_setup_a<T:Sendable>(a : Matrix<T>, _ : &CoreInfo<Matrix<T>>) 
+  fn inner_setup_a<T:Sendable>(a : Matrix<T>, _ : &mut TaurusCoreInfo<Matrix<T>>) 
     -> Matrix<T> {
     a
   }
-  fn inner_setup_b<T:Sendable>(b : Matrix<T>, _ : &CoreInfo<Matrix<T>>) 
+  fn inner_setup_b<T:Sendable>(b : Matrix<T>, _ : &mut TaurusCoreInfo<Matrix<T>>) 
     -> Matrix<T> {
     b
   }
   fn matrix_mult<T : Multiplicable + Sendable>(_ : Matrix<T>, _ : Matrix<T>, 
-                                   _ : Matrix<T>, _ : usize, _ : &CoreInfo<Matrix<T>>,
+                                   _ : Matrix<T>, _ : usize, _ : &mut TaurusCoreInfo<Matrix<T>>,
                                    ) -> Matrix<T>;
 }
 
@@ -59,17 +59,17 @@ impl ParallelMatMult for Hash {
 
   fn matrix_mult<T : Sendable + Multiplicable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
                                      mut matrix_c : Matrix<T>, iterations : usize,
-                                     core_info : &CoreInfo<Matrix<T>>, 
+                                     core_info : &mut TaurusCoreInfo<Matrix<T>>, 
                                      ) -> Matrix<T> {
     for iter in 0..iterations {
       if core_info.col == iter {
-        core_info.core_comm.row.send(matrix_a.clone());
+        core_info.send(Taurus::ROW, matrix_a.clone());
       }
       if core_info.row == iter {
-        core_info.core_comm.col.send(matrix_b.clone());
+      core_info.send(Taurus::COL, matrix_b.clone());
       }
-      let received_a = core_info.core_comm.row.recv();
-      let received_b = core_info.core_comm.col.recv();
+      let received_a = core_info.recv(Taurus::ROW);
+      let received_b = core_info.recv(Taurus::COL);
 
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
     }
@@ -82,19 +82,19 @@ pub struct FoxOtto;
 impl ParallelMatMult for FoxOtto {
   fn matrix_mult<T : Multiplicable + Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
                                      mut matrix_c : Matrix<T>, iterations : usize,
-                                     core_info : &CoreInfo<Matrix<T>>
+                                     core_info : &mut TaurusCoreInfo<Matrix<T>>
                                      ) -> Matrix<T> {
     let mut received_b = matrix_b;
     for iter in 0..iterations {
       if iter == (( iterations + core_info.col - core_info.row) % iterations ) {
-        core_info.core_comm.row.send(matrix_a.clone());
+        core_info.send(Taurus::ROW, matrix_a.clone());
       }
-      let received_a = core_info.core_comm.row.recv();
+      let received_a = core_info.recv(Taurus::ROW);
       
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
       
-      let _ = core_info.core_comm.up.send(received_b);
-      received_b = core_info.core_comm.down.recv();
+      core_info.send(Taurus::UP, received_b);
+      received_b = core_info.recv(Taurus::DOWN);
     }
     return matrix_c;
   }
@@ -104,57 +104,57 @@ pub struct Cannon;
 
 
 impl ParallelMatMult for Cannon {
-  fn outer_setup_a<T : Clone, H : Sendable>( matrix_a : &Matrix<T>,
-                                 processor : &Processor<H>) -> VecDeque<Matrix<T>> {
+  fn outer_setup_a<K : Clone, H : Sendable, T : Sendable>( matrix_a : &Matrix<K>,
+                                 processor : &Processor<H,T>) -> VecDeque<Matrix<K>> {
     let submatrices_a = VecDeque::from(processor.get_submatrices(matrix_a));
     let indices : Vec<usize> = (0..processor.rows)
       .flat_map(|row| (0..processor.cols)
                 .map(|col| row * processor.cols +((processor.cols + col - row) % processor.cols))
                 .collect::<Vec<_>>())
       .collect();
-    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<T>>>();
+    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<K>>>();
     submatrices_a.into_iter().zip(indices.iter()).map(|(m, &index)| result[index] = m).count();
 
     return result;
   }
 
-  fn outer_setup_b<T : Clone, H : Sendable>(matrix_b : &Matrix<T>,
-                                 processor : &Processor<H>) -> VecDeque<Matrix<T>> {
+  fn outer_setup_b<K : Clone, H : Sendable, T : Sendable>(matrix_b : &Matrix<K>,
+                                 processor : &Processor<H,T>) -> VecDeque<Matrix<K>> {
     let submatrices_b = VecDeque::from(processor.get_submatrices(matrix_b));
     let indices : Vec<usize> = (0..processor.rows)
       .flat_map(|row| (0..processor.cols)
                 .map(|col| ((processor.rows + row - col) % processor.rows) * processor.cols + col)
                 .collect::<Vec<_>>())
       .collect();
-    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<T>>>();
+    let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<K>>>();
     submatrices_b.into_iter().zip(indices.iter()).map(|(m, &index)| result[index] = m).count();
 
     return result;
   }
 
-  fn inner_setup_a <T : Sendable>(a : Matrix<T>, core_info : &CoreInfo<Matrix<T>>) 
+  fn inner_setup_a <T : Sendable>(a : Matrix<T>, core_info : &mut TaurusCoreInfo<Matrix<T>>) 
       -> Matrix<T> {
     let mut temp = a;
     for _ in 0..core_info.row {
-      core_info.core_comm.left.send(temp);
-      temp = core_info.core_comm.right.recv();
+      core_info.send(Taurus::LEFT, temp);
+      temp = core_info.recv(Taurus::RIGHT);
     }
     temp
   }
 
-  fn inner_setup_b<T : Sendable>(b : Matrix<T>, core_info : &CoreInfo<Matrix<T>>) 
+  fn inner_setup_b<T : Sendable>(b : Matrix<T>, core_info : &mut TaurusCoreInfo<Matrix<T>>) 
       -> Matrix<T> {
     let mut temp = b;
     for _ in 0..core_info.col {
-      core_info.core_comm.up.send(temp);
-      temp = core_info.core_comm.down.recv();
+      core_info.send(Taurus::UP, temp);
+      temp = core_info.recv(Taurus::DOWN);
     }
     temp
   }
 
   fn matrix_mult<T : Multiplicable + Sendable>(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
                                      mut matrix_c : Matrix<T>, iterations : usize,
-                                     core_info : &CoreInfo<Matrix<T>>
+                                     core_info : &mut TaurusCoreInfo<Matrix<T>>
                                      ) -> Matrix<T> {
     let mut received_a = matrix_a;
     let mut received_b = matrix_b;
@@ -162,10 +162,10 @@ impl ParallelMatMult for Cannon {
     for _ in 0..iterations {
       matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
       
-      core_info.core_comm.left.send(received_a);
-      core_info.core_comm.up.send(received_b);
-      received_a = core_info.core_comm.right.recv();
-      received_b = core_info.core_comm.down.recv();
+      core_info.send(Taurus::LEFT, received_a);
+      core_info.send(Taurus::UP, received_b);
+      received_a = core_info.recv(Taurus::RIGHT);
+      received_b = core_info.recv(Taurus::DOWN);
     }
     return matrix_c;
   }
