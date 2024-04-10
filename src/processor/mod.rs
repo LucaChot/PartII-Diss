@@ -25,6 +25,8 @@ impl<T : Sendable> CoreComm<T> {
 
 #[derive(Clone)]
 struct CoreDebug {
+  row : usize,
+  col : usize,
   direct_count : usize,
   broadcast_count : usize,
   last_time : Instant,
@@ -32,25 +34,37 @@ struct CoreDebug {
 }
 
 impl CoreDebug {
-  fn new() -> CoreDebug {
+  fn new(row : usize, col : usize) -> CoreDebug {
     CoreDebug { 
+      row,
+      col,
       direct_count : 0,
       broadcast_count : 0,
       last_time: Instant::now(),
       total_elapsed: Duration::ZERO,
     }
-
   }
-  fn get_elapsed(&self) -> Duration {
+
+  fn get_curr_elapsed(&self) -> Duration {
     self.last_time.elapsed() + self.total_elapsed
   }
 
   fn update_elapsed(&mut self, outer : Duration) {
-    let current = self.get_elapsed();
+    let current = self.get_curr_elapsed();
     if current < outer {
       self.last_time = Instant::now();
       self.total_elapsed = outer;
+    } else {
     }
+  }
+
+  fn set_elapsed(&mut self) {
+    self.total_elapsed = self.get_curr_elapsed();
+    self.last_time = Instant::now();
+  }
+
+  fn get_last_elapsed(&self) -> Duration {
+    self.total_elapsed
   }
 }
 
@@ -81,7 +95,7 @@ impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
   type ChannelOption = Taurus;
 
   fn send(&mut self, ch_option : Self::ChannelOption, data : T){
-    let elapsed =  self.core_debug.get_elapsed();
+    let elapsed =  self.core_debug.get_curr_elapsed();
     match ch_option {
       Taurus::LEFT => {
         self.core_comm.left.send((data,elapsed));
@@ -150,7 +164,7 @@ impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
       for row in 0..self.rows {
         for col in 0..self.cols {
           cores.push(TaurusCoreInfo{ row, col, core_comm : CoreComm::new(), 
-            core_debug : CoreDebug::new()
+            core_debug : CoreDebug::new(row, col)
           })
         }
       }
@@ -248,11 +262,15 @@ impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
     Self::get_matrix_slices(matrix, &submatrices_dim)
   }
 
-  pub fn run_core<F> (&mut self, f: F) 
+  pub fn run_core<F> (&mut self, f: F, mut core_info : TaurusCoreInfo<T>) 
   where
-      F: FnOnce() -> (H, TaurusCoreInfo<T>) + Send + 'static,
+      F: FnOnce(&mut TaurusCoreInfo<T>) -> H + Send + 'static,
   {
-        let handle = thread::spawn(f);
+        let handle = thread::spawn(move || {
+          let result = f(&mut core_info);
+          core_info.core_debug.set_elapsed();
+          (result, core_info)
+        });
         self.handles.push(handle);
   }
 
@@ -266,7 +284,13 @@ impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
     }
     results
   }
-      
+
+  pub fn display_processor_time (&self) {
+    for debug in &self.debugs {
+      println!("Core {} {} elapsed time: {}µs",
+               debug.row, debug.col, debug.get_last_elapsed().as_micros());
+    }
+  }
 }
 
 
