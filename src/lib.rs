@@ -68,7 +68,7 @@ where T : Multiplicable + Sendable + 'static {
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let mut core_info = cores_info.pop_front().unwrap();
+        let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let iterations = self.cores_height;
 
@@ -77,17 +77,18 @@ where T : Multiplicable + Sendable + 'static {
         let b = submatrices_b.pop_front().unwrap();
         let c = submatrices_c.pop_front().unwrap();
 
-        let core_function = move || {
-          let c = F::matrix_mult(a, b, c, iterations, &mut core_info);
-          ((i,j,c), core_info)
+        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>| {
+          let c = F::matrix_mult(a, b, c, iterations, core_info);
+          (i,j,c)
         };
 
-        self.processor.run_core(core_function);
+        self.processor.run_core(core_function, core_info);
       }
     }
 
     let core_results = self.processor.collect_results();
     self.collect_c(&core_results, &mut matrix_c);
+    self.processor.display_processor_time();
     matrix_c
   }   
 
@@ -106,7 +107,7 @@ where T : Multiplicable + Sendable + 'static {
     for i in 0..self.cores_height {
       for j in 0..self.cores_width {
         // Assign each thread its corresponding channels
-        let mut core_info = cores_info.pop_front().unwrap();
+        let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
         let inner_iterations = self.cores_height;
 
@@ -115,21 +116,22 @@ where T : Multiplicable + Sendable + 'static {
         let mut b = submatrices_b.pop_front().unwrap();
         let mut c = submatrices_c.pop_front().unwrap();
 
-        let core_function = move || {
+        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>| {
           for _ in 0..outer_iterations{
-            c = F::matrix_mult(a, b, c, inner_iterations, &mut core_info);
-            a = F::inner_setup_a(c.clone(), &mut core_info);
-            b = F::inner_setup_b(c.clone(), &mut core_info);
+            c = F::matrix_mult(a, b, c, inner_iterations, core_info);
+            a = F::inner_setup_a(c.clone(), core_info);
+            b = F::inner_setup_b(c.clone(), core_info);
           }
-          ((i,j,c), core_info)
+          (i,j,c)
         };
 
-        self.processor.run_core(core_function);
+        self.processor.run_core(core_function, core_info);
       }
     }
 
     let core_results = self.processor.collect_results();
     self.collect_c(&core_results, &mut matrix_c);
+    self.processor.display_processor_time();
     matrix_c
   }
 
