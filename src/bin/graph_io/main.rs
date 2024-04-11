@@ -3,6 +3,7 @@ use std::io::{self, BufRead, Write};
 
 mod parse_edge_txt;
 mod reduce_graph;
+mod types;
 use parse_edge_txt::parse_string;
 use reduce_graph::complete_reduction;
 

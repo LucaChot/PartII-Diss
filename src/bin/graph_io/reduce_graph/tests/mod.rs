@@ -6,7 +6,7 @@ fn test_connected_true(){
   let a = Edge::new(0,1,1.0);
   let b = Edge::new(0,2,1.0);
 
-  let result = check_connected(&Rc::new(a), &Rc::new(b));
+  let result = Rc::new(a).is_connected(&Rc::new(b));
 
   assert_eq!(result, Some((true,true)));
 }
@@ -16,7 +16,7 @@ fn test_connected_true2(){
   let a = Edge::new(0,5,1.0);
   let b = Edge::new(5,6,1.0);
 
-  let result = check_connected(&Rc::new(a), &Rc::new(b));
+  let result = Rc::new(a).is_connected(&Rc::new(b));
 
   assert_eq!(result, Some((false,true)));
 }
@@ -26,7 +26,7 @@ fn test_connected_false(){
   let a = Edge::new(0,1,1.0);
   let b = Edge::new(2,3,1.0);
 
-  let result = check_connected(&Rc::new(a), &Rc::new(b));
+  let result = Rc::new(a).is_connected(&Rc::new(b));
 
   assert_eq!(result, None);
 }
