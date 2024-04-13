@@ -8,28 +8,21 @@ mod types;
 pub use broadcast::Sendable;
 pub use types::{Matrix, Msg};
 use matrix_multiplication::*;
-pub use matrix_multiplication::Multiplicable;
+pub use matrix_multiplication::{Multiplicable, FoxOtto, Cannon, Hash};
 use processor::{TaurusCoreInfo, Processor, TaurusNetworkBuilder, get_submatrices_dim};
+pub use processor::{NetworkBuilder, CoreInfo};
 
-
-pub enum Comm {
-  BROADCAST,
-  FOXOTTO,
-  CANNON,
-}
-
-
-pub struct Algorithm<T> 
+pub struct MatMul<T> 
 where T : Multiplicable + Sendable + 'static {
   cores_height : usize, 
   cores_width : usize,
   processor : Processor<(usize, usize, Matrix<T>),Matrix<T>, TaurusCoreInfo<Matrix<T>>>
 }
 
-impl<T> Algorithm<T> 
+impl<T> MatMul<T> 
 where T : Multiplicable + Sendable + 'static {
   pub fn new(p_height : usize, p_width: usize) -> Self {
-    Algorithm {
+    MatMul {
       cores_height : p_height,
       cores_width : p_width,
       processor : Processor::new(p_height, p_width, Box::new(TaurusNetworkBuilder {})),
@@ -54,8 +47,7 @@ where T : Multiplicable + Sendable + 'static {
     }
   }
   
-  fn parralel_mult_internal<F>  (&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>,
-                                                  _ : F)
+  pub fn parallel_mult<F>  (&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>)
     -> Matrix<T> 
     where F : ParallelMatMult {
     let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.build_network());
@@ -92,9 +84,7 @@ where T : Multiplicable + Sendable + 'static {
     matrix_c
   }   
 
-  fn parralel_square_internal<F> (&mut self, matrix_a : Matrix<T>,
-                                                    outer_iterations : usize,
-                                                  _ : F)
+  pub fn parallel_square<F> (&mut self, matrix_a : Matrix<T>, outer_iterations : usize)
     -> Matrix<T> 
     where F : ParallelMatMult {
     let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.build_network());
@@ -133,38 +123,6 @@ where T : Multiplicable + Sendable + 'static {
     self.collect_c(&core_results, &mut matrix_c);
     self.processor.display_processor_time();
     matrix_c
-  }
-
-
-  pub fn parallel_mult(&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
-                   comm : Comm) -> Matrix<T> {
-    match comm {
-      Comm::BROADCAST => self.parralel_mult_internal(matrix_a,
-                                          matrix_b,
-                                          Hash),
-      Comm::FOXOTTO => self.parralel_mult_internal(matrix_a,
-                                          matrix_b, 
-                                          FoxOtto),
-      Comm::CANNON => self.parralel_mult_internal(matrix_a,
-                                          matrix_b, 
-                                          Cannon),
-    }
-  }
-
-  pub fn parallel_square(&mut self, matrix_a : Matrix<T>,
-                         iterations : usize,
-                   comm : Comm) -> Matrix<T> {
-    match comm {
-      Comm::BROADCAST => self.parralel_square_internal(matrix_a,
-                                                       iterations,
-                                          Hash),
-      Comm::FOXOTTO => self.parralel_square_internal(matrix_a,
-                                                     iterations,
-                                          FoxOtto),
-      Comm::CANNON => self.parralel_square_internal(matrix_a,
-                                                    iterations,
-                                          Cannon),
-    }
   }
 }
 
