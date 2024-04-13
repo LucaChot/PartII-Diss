@@ -1,101 +1,18 @@
-use std::cell::RefCell;
-use std::fs::File;
-use serde::{Serialize,Deserialize};
-use std::io::{self, Write, BufRead};
 use std::rc::Rc;
 use std::cmp::Ordering::*;
-use crate::parse_edge_txt::parse_string;
+use crate::parse_edge_txt::{edge_file_to_vec, store_edges, store_vec};
+use crate::types::*;
 
-#[derive(Serialize, Deserialize)]
-struct ChainState {
-  chain_id : usize,
-  end_a : usize,
-  dist_a : f64,
-  end_b : usize,
-  dist_b : f64,
-}
-
-impl ChainState {
-  fn new (chain_id : usize, end_a : usize, dist_a : f64, end_b : usize, dist_b : f64)  -> ChainState {
-    ChainState { chain_id , end_a , dist_a , end_b, dist_b }
+fn create_node_vec(edges : &Vec<Rc<Edge>>, num_nodes : usize) -> Vec<Node> {
+  let mut nodes : Vec<Node> = Vec::with_capacity(num_nodes);
+  for i in 0..num_nodes {
+    nodes.push(Node::new(i));
   }
-}
-
-
-#[derive(Serialize, Deserialize)]
-enum ReducedState {
-  INCHAIN(ChainState),
-  INGRAPH(usize)
-}
-
-struct Node{
-  rc_edge : Vec<Rc<Edge>>,
-  visited : RefCell<bool>,
-  reduced_state : ReducedState
-}
-
-impl Node {
-  fn new (index : usize)  -> Node {
-    Node { rc_edge : Vec::new(), visited : RefCell::new(false), reduced_state : ReducedState::INGRAPH(index) }
+  for edge in edges { 
+    nodes[(*edge).node_a].add_edge(&edge);
+    nodes[(*edge).node_b].add_edge(&edge);
   }
-
-  fn is_val_2 (&self) -> bool {
-   self.rc_edge.len() == 2 
-  }
-
-  fn add_edge(&mut self, edge : &Rc<Edge>) {
-    self.rc_edge.push(Rc::clone(edge));
-  }
-}
-
-#[derive(Debug)]
-struct Edge {
-    node_a : usize,
-    node_b : usize,
-    distance : f64,
-    visited: RefCell<bool>,
-    order: RefCell<usize>,
-}
-
-impl Edge {
-    fn new(node_a : usize, node_b : usize, distance : f64) -> Self {
-        Edge { node_a,
-          node_b,
-          distance,
-          visited : RefCell::new(false),
-          order :  RefCell::new(0)
-        }
-    }
-
-  fn is_connected(&self, b : &Edge) -> Option<(bool,bool)>{ 
-    match self.node_a {
-      n if n == b.node_a => Some((true, true)),
-      n if n == b.node_b => Some((true, false)),
-      _ => match self.node_b {
-        n if n == b.node_a => Some((false, true)),
-        n if n == b.node_b => Some((false, false)),
-        _ => None,
-      },
-    }
-  }
-}
-
-impl PartialEq for Edge {
-    fn eq(&self, other: &Self) -> bool {
-        self.node_a == other.node_a 
-          && self.node_b == other.node_b 
-          && self.distance == other.distance
-    }
-}
-
-impl PartialOrd for Edge {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-      match (self.node_a.cmp(&other.node_a),self.node_b.cmp(&other.node_b)) {
-        (std::cmp::Ordering::Equal, std::cmp::Ordering::Equal) => 
-          Some(self.distance.total_cmp(&other.distance)),
-        _ => None
-      }
-    }
+  nodes
 }
 
 fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize) -> usize {
@@ -128,68 +45,9 @@ fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize) -> usi
   order
 }
 
-fn edge_file_to_vec(input_file : File) -> (Vec<Rc<Edge>>, usize) {
-  let input_reader = io::BufReader::new(input_file);
-  let mut edges : Vec<Rc<Edge>> = Vec::new();
-  let mut num_nodes = 0;
-  // Iterate over the lines in the file
-  for line in input_reader.lines() {
-      // Handle each line
-      match line {
-          Ok(content) => {
-            match parse_string(&content) {
-              Ok((start_node, end_node, distance)) =>  {
-                if end_node >= num_nodes {
-                  num_nodes = end_node + 1;
-                }
-                edges.push(Rc::new(Edge::new(start_node, end_node, distance)))
-              }
-              ,
-              Err(err) => eprintln!("Error reading line: {}", err),
-            }
-          }
-          Err(err) => eprintln!("Error reading line: {}", err),
-      }
-  }
-  (edges, num_nodes)
-}
-
-fn create_node_vec(edges : &Vec<Rc<Edge>>, num_nodes : usize) -> Vec<Node> {
-  let mut nodes : Vec<Node> = Vec::with_capacity(num_nodes);
-  for i in 0..num_nodes {
-    nodes.push(Node::new(i));
-  }
-  for edge in edges { 
-    nodes[(*edge).node_a].add_edge(&edge);
-    nodes[(*edge).node_b].add_edge(&edge);
-  }
-  nodes
-}
-
 fn sort_edges_by_order(edges : &mut Vec<Rc<Edge>>) {
   edges.sort_by(|a,b| (*a.order.borrow()).cmp(&(*b.order.borrow())));
 }
-
-#[derive(Debug,PartialEq)]
-struct Chain {
-  start : usize,
-  end : usize, 
-  nodes : Vec<(usize, f64)>,
-  dist : f64,
-}
-
-impl Chain {
-  fn new() -> Self {
-    Chain { start : 0, end : 0, nodes : Vec::new(), dist : 0.0 }
-  }
-
-  fn get_edge(&self) -> Rc<Edge>{
-    let mut ends = [self.start, self.end];
-    ends.sort();
-    Rc::new(Edge::new(ends[0], ends[1], self.dist))
-  }
-}
-
 
 fn remove_edges(edges : Vec<Rc<Edge>>, nodes_state : &Vec<Node>) -> (Vec<Rc<Edge>>, Vec<Chain>) {
   let mut edge_iter = edges.into_iter();
@@ -299,88 +157,17 @@ fn update_remain_nodes (nodes : &mut Vec<Node>) {
 
 }
 
-fn remove_val_2_nodes (input_file : File) -> (Vec<Rc<Edge>>, Vec<Chain>) {
-  let (mut edges, num_nodes) = edge_file_to_vec(input_file);
-  let nodes = create_node_vec(&edges, num_nodes);
-  
-  visit_node(&nodes, 0, 0);
-  sort_edges_by_order(&mut edges);
-
-  remove_edges(edges, &nodes)
-}
-
-fn chain_to_io(chain : Chain, id : usize) -> Vec<String> {
-  let order = chain.start < chain.end;
-  let len = chain.nodes.len() - 2;
-
-  let node_to_io = |node : usize, dist : f64| {
-    let str : String;
-    if order {
-      str = format!("{} {} {} {} {} {}",
-                        node, id,chain.start, dist, chain.end, chain.dist - dist);
-    } else {
-      str = format!("{} {} {} {} {} {}",
-                        node, id, chain.end, chain.dist - dist, chain.start, dist);
-    }
-    str
-  };
-
-  chain.nodes.iter().skip(1).take(len).map(|&(node, dist)| node_to_io(node,dist)).collect::<Vec<_>>()
-}
-
-fn store_val_2(chains : Vec<Chain>, output_file_path : &str) -> io::Result<()> {
-  let formatted_strings : Vec<String> = chains.into_iter().enumerate()
-    .flat_map(|(id, chain)| chain_to_io(chain, id))
-    .collect();
-
-  let mut file = File::create(output_file_path)?;
-  for line in formatted_strings{
-    writeln!(file, "{}", line)?;
-  }
-  Ok(())
-}
-
-
 fn sort_edges_by_nodes(edges : &mut Vec<Rc<Edge>>) {
   edges.sort_by(|a,b| a.node_a.cmp(&b.node_a).then_with(|| a.node_b.cmp(&b.node_b)));
 }
 
-fn remove_duplicate_edges(edges : Vec<Rc<Edge>>) -> Vec<Rc<Edge>> {
-  let mut deduplicated_edges = Vec::with_capacity(edges.len());
-  let mut edge_iter = edges.into_iter();
-  let mut curr_edge : Rc<Edge>;
+fn updated_reduced_edges(edges : &Vec<Rc<Edge>>, nodes : &Vec<Node>) -> Vec<Rc<Edge>> {
+  let mut reduced_edges = Vec::with_capacity(edges.len());
+  let mut edge_iter = edges.iter();
+  let mut curr_edge : &Rc<Edge>;
 
   match edge_iter.next() {
-    None => return deduplicated_edges,
-    Some(edge) => curr_edge = edge,
-  }
-
-  for next_edge in edge_iter {
-    if (*curr_edge).node_a == (*curr_edge).node_b {
-      curr_edge = next_edge;
-      continue;
-    }
-    match (*curr_edge).partial_cmp(&(*next_edge)) {
-      None => {
-        deduplicated_edges.push(curr_edge);
-        curr_edge = next_edge;
-      },
-      Some(Greater) => curr_edge = next_edge,
-      _ => (),
-    }
-  }
-  deduplicated_edges.push(curr_edge);
-
-  return deduplicated_edges;
-}
-
-fn updated_reduced_edges(edges : Vec<Rc<Edge>>, nodes : Vec<Node>) -> Vec<Rc<Edge>> {
-  let mut deduplicated_edges = Vec::with_capacity(edges.len());
-  let mut edge_iter = edges.into_iter();
-  let mut curr_edge : Rc<Edge>;
-
-  match edge_iter.next() {
-    None => return deduplicated_edges,
+    None => return reduced_edges,
     Some(edge) => curr_edge = edge,
   }
 
@@ -393,45 +180,38 @@ fn updated_reduced_edges(edges : Vec<Rc<Edge>>, nodes : Vec<Node>) -> Vec<Rc<Edg
       None => {
         match (&nodes[curr_edge.node_a].reduced_state, &nodes[curr_edge.node_b].reduced_state) {
           (ReducedState::INGRAPH(i), ReducedState::INGRAPH(j)) => {
-            deduplicated_edges.push(Rc::new(Edge::new(*i, *j, curr_edge.distance)));
+            reduced_edges.push(Rc::new(Edge::new(*i, *j, curr_edge.distance)));
           },
           _ => (),
         };
-        deduplicated_edges.push(curr_edge);
         curr_edge = next_edge;
       },
       Some(Greater) => curr_edge = next_edge,
       _ => (),
     }
   }
-  deduplicated_edges.push(curr_edge);
+  match (&nodes[curr_edge.node_a].reduced_state, &nodes[curr_edge.node_b].reduced_state) {
+    (ReducedState::INGRAPH(i), ReducedState::INGRAPH(j)) => {
+      reduced_edges.push(Rc::new(Edge::new(*i, *j, curr_edge.distance)));
+    },
+    _ => (),
+  };
 
-  return deduplicated_edges;
-}
-fn store_edges(edges : Vec<Rc<Edge>>, output_file_path : &str) -> io::Result<()> {
-  let formatted_strings : Vec<String> = edges.into_iter().enumerate()
-    .map(|(id, edge)| format!("{} {} {} {}", id, edge.node_a, edge.node_b, edge.distance))
-    .collect();
-
-  let mut file = File::create(output_file_path)?;
-  for line in formatted_strings{
-    writeln!(file, "{}", line)?;
-  }
-  Ok(())
+  return reduced_edges;
 }
 
-fn store_nodes(nodes : &Vec<Node>, output_file_path : &str) -> io::Result<()> {
-  let mut file = File::create(output_file_path)?;
-  for node in nodes {
-    let serialized = bincode::serialize(&node.reduced_state).unwrap();
-    file.write_all(&serialized)?;
-  }
-  Ok(())
+fn remove_val_2_nodes (input_file : &str) -> (Vec<Rc<Edge>>, Vec<Chain>) {
+  let (mut edges, num_nodes) = edge_file_to_vec(input_file);
+  let nodes = create_node_vec(&edges, num_nodes);
+  
+  visit_node(&nodes, 0, 0);
+  sort_edges_by_order(&mut edges);
+
+  remove_edges(edges, &nodes)
 }
 
-pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes : &str) 
-  -> io::Result<()> {
-  let input_file = File::open(input_file)?;
+
+pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes : &str, output_chains : &str) {
   let (mut edges, num_nodes) = edge_file_to_vec(input_file);
   let mut nodes = create_node_vec(&edges, num_nodes);
   
@@ -440,11 +220,15 @@ pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes :
 
   let (mut reduced_edges, chains) = remove_edges(edges, &nodes);
   update_chain_nodes(&chains, &mut nodes);
-  store_val_2(chains, output_nodes)?;
+  update_remain_nodes(&mut nodes);
+
+  let reduced_nodes = Node::get_reduced(&nodes);
+  store_vec(&reduced_nodes, output_nodes);
+  store_vec(&chains, output_chains);
 
   sort_edges_by_nodes(&mut reduced_edges);
   //let deduplicated = remove_duplicate_edges(reduced_edges);
-  let updated = updated_reduced_edges(reduced_edges, nodes);
+  let updated = updated_reduced_edges(&reduced_edges, &nodes);
 
   store_edges(updated, output_edges)
 }

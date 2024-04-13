@@ -1,3 +1,5 @@
+use crate::parse_edge_txt::store_chains_txt;
+
 use super::*;
 
 
@@ -36,9 +38,7 @@ fn test_connected_false(){
 
 #[test]
 fn test_removal_linear1(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear1.txt").unwrap();
-
-  let (edges, chains) = remove_val_2_nodes(input_file);
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear1.txt");
 
   assert_eq!(*edges[0], Edge::new(0,3,3.0));
 
@@ -50,9 +50,7 @@ fn test_removal_linear1(){
 
 #[test]
 fn test_removal_linear2(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear2.txt").unwrap();
-
-  let (edges, chains) = remove_val_2_nodes(input_file);
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear2.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,2.0));
 
@@ -66,9 +64,7 @@ fn test_removal_linear2(){
 
 #[test]
 fn test_removal_linear3(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/linear3.txt").unwrap();
-
-  let (edges, chains) = remove_val_2_nodes(input_file);
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear3.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,3.0));
 
@@ -80,9 +76,7 @@ fn test_removal_linear3(){
 
 #[test]
 fn test_removal_cycle(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt").unwrap();
-
-  let (edges, chains) = remove_val_2_nodes(input_file);
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,2.0));
   assert_eq!(*edges[1], Edge::new(0,2,3.0));
@@ -104,9 +98,7 @@ fn test_removal_cycle(){
 
 #[test]
 fn test_removal_complex(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/complex.txt").unwrap();
-
-  let (edges, chains) = remove_val_2_nodes(input_file);
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/complex.txt");
 
   assert_eq!(*edges[0], Edge::new(0,5,1.0));
   assert_eq!(*edges[1], Edge::new(4,5,1.0));
@@ -123,10 +115,12 @@ fn test_removal_complex(){
 
 #[test]
 fn test_remove_redundancy(){
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/redundant.txt").unwrap();
-  let (mut edges, _) = edge_file_to_vec(input_file);
+  let (mut edges, node_num) = edge_file_to_vec("src/bin/graph_io/reduce_graph/tests/graphs/redundant.txt");
+  let nodes = create_node_vec(&edges, node_num);
   sort_edges_by_nodes(&mut edges);
-  let deduplicated = remove_duplicate_edges(edges);
+  dbg!(&edges);
+  let deduplicated = updated_reduced_edges(&edges, nodes);
+  dbg!(&deduplicated);
   let correct = vec![
     Edge::new(0,1,1.0),
     Edge::new(1,2,1.0),
@@ -140,11 +134,9 @@ fn test_remove_redundancy(){
 }
 
 #[test]
-fn test_store_val2() -> io::Result<()> {
-  let input_file = File::open("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt").unwrap();
-  let (_, chains) = remove_val_2_nodes(input_file);
+fn test_store_val2() {
+  let (_, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt");
   assert_eq!(
-    store_val_2(chains, "src/bin/graph_io/reduce_graph/tests/results/cycle_nodes.txt")?
+    store_chains_txt(chains, "src/bin/graph_io/reduce_graph/tests/results/cycle_nodes.txt")
     , ());
-  Ok(())
 }
