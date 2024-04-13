@@ -49,7 +49,7 @@ where T : Multiplicable + Sendable + 'static {
   
   pub fn parallel_mult<F>  (&mut self, matrix_a : Matrix<T>, matrix_b : Matrix<T>)
     -> Matrix<T> 
-    where F : ParallelMatMult {
+    where F : CommMethod<T,TaurusCoreInfo<Matrix<T>>>  {
     let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.build_network());
 
     let mut submatrices_a = F::outer_setup_a(self.processor.rows, self.processor.cols, &matrix_a);
@@ -86,7 +86,7 @@ where T : Multiplicable + Sendable + 'static {
 
   pub fn parallel_square<F> (&mut self, matrix_a : Matrix<T>, outer_iterations : usize)
     -> Matrix<T> 
-    where F : ParallelMatMult {
+    where F : CommMethod<T,TaurusCoreInfo<Matrix<T>>> {
     let mut cores_info : VecDeque<TaurusCoreInfo<Matrix<T>>> = VecDeque::from(self.processor.build_network());
 
     let mut submatrices_a = F::outer_setup_a(self.processor.rows, self.processor.cols, &matrix_a);

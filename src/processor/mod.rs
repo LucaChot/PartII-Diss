@@ -68,16 +68,6 @@ impl CoreDebug {
   }
 }
 
-pub enum Taurus {
-  LEFT,
-  RIGHT,
-  UP,
-  DOWN,
-  ROW,
-  COL,
-}
-
-
 pub trait CoreInfo<T : Sendable> : Send {
   type ChannelOption;
 
@@ -85,6 +75,15 @@ pub trait CoreInfo<T : Sendable> : Send {
   fn recv(&mut self, ch_option : Self::ChannelOption) -> T;
   fn end_debug(&mut self);
   fn get_debug(&self) -> CoreDebug;
+}
+
+pub enum Taurus {
+  LEFT,
+  RIGHT,
+  UP,
+  DOWN,
+  ROW,
+  COL,
 }
 
 pub struct TaurusCoreInfo<T : Sendable> {
@@ -207,13 +206,6 @@ impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
   }
 }
 
-#[derive(Copy,Clone,Debug, PartialEq)]
-pub struct SubmatrixDim {
-  pub start_row : usize,
-  pub start_col : usize,
-  pub width : usize,
-  pub height : usize,
-}
 
 pub struct Processor<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T> + 'static> {
   pub rows : usize,
@@ -262,6 +254,14 @@ impl<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T>> Proc
                debug.row, debug.col, debug.get_last_elapsed().as_micros());
     }
   }
+}
+
+#[derive(Copy,Clone,Debug, PartialEq)]
+pub struct SubmatrixDim {
+  pub start_row : usize,
+  pub start_col : usize,
+  pub width : usize,
+  pub height : usize,
 }
 
 /// This function returns a Vec containing the dimensions of the submatrices to 
