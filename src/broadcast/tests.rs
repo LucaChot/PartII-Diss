@@ -1,20 +1,20 @@
 use std::{thread, sync::mpsc};
 
-use super::{BChannel, Sendable};
+use super::{Broadcast, Sendable, Channel};
 
 impl Sendable for i32 {}
 impl Sendable for String {}
 
 #[test]
 fn test_correctly_receive_serial(){
-  let mut bchannels = BChannel::new(2);
+  let mut bchannels = Broadcast::new(2);
 
 
-  let bchannel0: BChannel<i32> = 
-    std::mem::replace(&mut bchannels[0], BChannel::empty()); 
+  let bchannel0: Broadcast<i32> = 
+    std::mem::replace(&mut bchannels[0], Broadcast::empty()); 
 
-  let bchannel1: BChannel<i32> = 
-    std::mem::replace(&mut bchannels[1], BChannel::empty()); 
+  let bchannel1: Broadcast<i32> = 
+    std::mem::replace(&mut bchannels[1], Broadcast::empty()); 
 
   bchannel0.send(0);
   assert_eq!(bchannel0.recv(), 0);
@@ -25,12 +25,12 @@ fn test_correctly_receive_serial(){
 fn test_correctly_receive_parallel(){
   const NUM_CHANNELS: usize = 3;
 
-  let mut bchannels = BChannel::new(NUM_CHANNELS);
+  let mut bchannels = Broadcast::new(NUM_CHANNELS);
   let mut handles = Vec::with_capacity(NUM_CHANNELS);
 
   for i in 0..NUM_CHANNELS {
-    let bchannel: BChannel<i32> = 
-      std::mem::replace(&mut bchannels[i], BChannel::empty()); 
+    let bchannel: Broadcast<i32> = 
+      std::mem::replace(&mut bchannels[i], Broadcast::empty()); 
 
     
     let handle = thread::spawn(move || {
@@ -51,13 +51,13 @@ fn test_correctly_receive_parallel(){
 
 #[test]
 fn test_inorder_serial(){
-  let mut bchannels = BChannel::new(2);
+  let mut bchannels = Broadcast::new(2);
 
-  let bchannel0: BChannel<i32> = 
-    std::mem::replace(&mut bchannels[0], BChannel::empty()); 
+  let bchannel0: Broadcast<i32> = 
+    std::mem::replace(&mut bchannels[0], Broadcast::empty()); 
 
-  let bchannel1: BChannel<i32> = 
-    std::mem::replace(&mut bchannels[1], BChannel::empty()); 
+  let bchannel1: Broadcast<i32> = 
+    std::mem::replace(&mut bchannels[1], Broadcast::empty()); 
 
   bchannel0.send(0);
   bchannel1.send(1);
@@ -70,15 +70,15 @@ fn test_inorder_parallel(){
   const NUM_CHANNELS: usize = 3;
 
   let mut receivers = Vec::with_capacity(NUM_CHANNELS);
-  let mut bchannels = BChannel::new(NUM_CHANNELS);
+  let mut bchannels = Broadcast::new(NUM_CHANNELS);
   let mut handles = Vec::with_capacity(NUM_CHANNELS);
 
   for i in 0..NUM_CHANNELS {
     let (tx, rx) = mpsc::channel();
     receivers.push(rx);
 
-    let bchannel: BChannel<String> = 
-      std::mem::replace(&mut bchannels[i], BChannel::empty()); 
+    let bchannel: Broadcast<String> = 
+      std::mem::replace(&mut bchannels[i], Broadcast::empty()); 
 
     
     let handle = thread::spawn(move || {

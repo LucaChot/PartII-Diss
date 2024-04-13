@@ -1,30 +1,30 @@
-use crate::broadcast::{BChannel, Sendable, Channel};
+use crate::broadcast::{Broadcast, Sendable, Direct, Channel};
 use std::{time::{Duration, Instant}, thread::{JoinHandle, self}};
 
 struct CoreComm<T:Sendable>{
-  left : Channel<(T, Duration)>,
-  right : Channel<(T, Duration)>,
-  up : Channel<(T, Duration)>,
-  down : Channel<(T, Duration)>,
-  row : BChannel<(T, Duration)>,
-  col : BChannel<(T, Duration)>,
+  left : Direct<(T, Duration)>,
+  right : Direct<(T, Duration)>,
+  up : Direct<(T, Duration)>,
+  down : Direct<(T, Duration)>,
+  row : Broadcast<(T, Duration)>,
+  col : Broadcast<(T, Duration)>,
 }
 
 impl<T : Sendable> CoreComm<T> {
   fn new() -> CoreComm<T> {
     CoreComm { 
-      left: Channel::empty(),
-      right: Channel::empty(),
-      up: Channel::empty(),
-      down: Channel::empty(),
-      row: BChannel::empty(),
-      col: BChannel::empty()
+      left: Direct::empty(),
+      right: Direct::empty(),
+      up: Direct::empty(),
+      down: Direct::empty(),
+      row: Broadcast::empty(),
+      col: Broadcast::empty()
     }
   } 
 }
 
 #[derive(Clone)]
-struct CoreDebug {
+pub struct CoreDebug {
   row : usize,
   col : usize,
   direct_count : usize,
@@ -77,11 +77,14 @@ pub enum Taurus {
   COL,
 }
 
-pub trait CoreInfo<T : Sendable> {
+
+pub trait CoreInfo<T : Sendable> : Send {
   type ChannelOption;
 
   fn send(&mut self, ch_option : Self::ChannelOption, data : T);
   fn recv(&mut self, ch_option : Self::ChannelOption) -> T;
+  fn end_debug(&mut self);
+  fn get_debug(&self) -> CoreDebug;
 }
 
 pub struct TaurusCoreInfo<T : Sendable> {
@@ -136,6 +139,72 @@ impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
     self.core_debug.update_elapsed(recv_time);
     data
   }
+  
+  fn end_debug(&mut self){
+    self.core_debug.set_elapsed()
+  }
+
+  fn get_debug(&self) -> CoreDebug {
+      self.core_debug.clone()
+  }
+}
+
+pub trait NetworkBuilder<T:Sendable> {
+  type CoreType: CoreInfo<T>;
+  fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType>;
+}
+
+pub struct TaurusNetworkBuilder {}
+
+impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
+  type CoreType = TaurusCoreInfo<T>;
+
+  fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType> {
+      let num_cores = cols * rows;
+      let mut cores : Vec<TaurusCoreInfo<T>> = Vec::with_capacity(num_cores);
+      for row in 0..rows {
+        for col in 0..cols {
+          cores.push(TaurusCoreInfo{ row, col, core_comm : CoreComm::new(), 
+            core_debug : CoreDebug::new(row, col)
+          })
+        }
+      }
+
+    for i in 0..rows {
+      let mut bchannels : Vec<Broadcast<(T, Duration)>> = Broadcast::new(cols);
+      for step in 0..cols {
+        let core_index = rows * i + step;
+        cores[core_index].core_comm.row = bchannels.pop().unwrap();
+      }
+    }
+
+    for i in 0..cols {
+      let mut bchannels : Vec<Broadcast<(T, Duration)>> = Broadcast::new(rows);
+      for step in 0..rows {
+        let core_index = rows * step + i;
+        cores[core_index].core_comm.col = bchannels.pop().unwrap();
+      }
+    }
+    
+    for i in 0..num_cores {
+      let (up, down) = Direct::new();
+      let up_index = i;
+      let down_index = ( num_cores + i - cols ) % num_cores;
+
+      cores[up_index].core_comm.up = up;
+      cores[down_index].core_comm.down = down; 
+
+      let (right, left) = Direct::new();
+      let right_index = i;
+      let left_index = i - ( i % cols ) + ( (i +  1) % cols );
+
+      cores[right_index].core_comm.right = right;
+      cores[left_index].core_comm.left = left; 
+    }
+    
+    return cores
+      
+  }
 }
 
 #[derive(Copy,Clone,Debug, PartialEq)]
@@ -146,129 +215,31 @@ pub struct SubmatrixDim {
   pub height : usize,
 }
 
-pub struct Processor<H : Sendable + 'static, T : Sendable + 'static> {
+pub struct Processor<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T> + 'static> {
   pub rows : usize,
   pub cols : usize,
-  handles : Vec<JoinHandle<(H, TaurusCoreInfo<T>)>>,
+  networkbuilder : Box<dyn NetworkBuilder<T, CoreType = CoreType>>,
+  handles : Vec<JoinHandle<(H, CoreType)>>,
   debugs : Vec<CoreDebug>
 }
 
-impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
-  pub fn new(rows : usize, cols : usize) -> Processor<H, T>{
-    Processor {rows , cols , handles : Vec::new(), debugs : Vec::new() }
+impl<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T>> Processor<H, T, CoreType> {
+  pub fn new(rows : usize, cols : usize, networkbuilder : Box<dyn NetworkBuilder<T, CoreType = CoreType>>)
+    -> Processor<H, T, CoreType>{
+    Processor {rows , cols , networkbuilder, handles : Vec::new(), debugs : Vec::new() }
   }
 
-  pub fn create_taurus(&self) -> Vec<TaurusCoreInfo<T>> {
-      let num_cores = self.cols * self.rows;
-      let mut cores : Vec<TaurusCoreInfo<T>> = Vec::with_capacity(num_cores);
-      for row in 0..self.rows {
-        for col in 0..self.cols {
-          cores.push(TaurusCoreInfo{ row, col, core_comm : CoreComm::new(), 
-            core_debug : CoreDebug::new(row, col)
-          })
-        }
-      }
-
-    for i in 0..self.rows {
-      let mut bchannels : Vec<BChannel<(T, Duration)>> = BChannel::new(self.cols);
-      for step in 0..self.cols {
-        let core_index = self.rows * i + step;
-        cores[core_index].core_comm.row = bchannels.pop().unwrap();
-      }
-    }
-
-    for i in 0..self.cols {
-      let mut bchannels : Vec<BChannel<(T, Duration)>> = BChannel::new(self.rows);
-      for step in 0..self.rows {
-        let core_index = self.rows * step + i;
-        cores[core_index].core_comm.col = bchannels.pop().unwrap();
-      }
-    }
-    
-    for i in 0..num_cores {
-      let (up, down) = Channel::new();
-      let up_index = i;
-      let down_index = ( num_cores + i - self.cols ) % num_cores;
-
-      cores[up_index].core_comm.up = up;
-      cores[down_index].core_comm.down = down; 
-
-      let (right, left) = Channel::new();
-      let right_index = i;
-      let left_index = i - ( i % self.cols ) + ( (i +  1) % self.cols );
-
-      cores[right_index].core_comm.right = right;
-      cores[left_index].core_comm.left = left; 
-    }
-    
-    return cores
+  pub fn build_network(&self) -> Vec<CoreType> {
+    self.networkbuilder.build(self.rows, self.cols)
   }
 
-  /// This function returns a Vec containing the dimensions of the submatrices to 
-  /// be assigned to each processor given the length of the array of processors 
-  /// and the matrix along a given axis
-  ///
-  /// # Arguemnts
-  /// * `processor_length` - Length of processor along a given axis
-  /// * `matrix_length` - Length of matrix along a given axis
-  ///
-  /// # Returns
-  /// Returns the Vec<usize> of length `processor_length` which contains the 
-  /// length along the axis of the submatrix to be assigned to each processor
-  fn get_submatrices_dim_along_axis(processor_length : usize, matrix_length : usize) -> Vec<usize> {
-    let min_len : usize = matrix_length / processor_length;
-    let remaining : usize = matrix_length - ( processor_length * min_len );
-    let mut submatrix_dimensions : Vec<usize> = vec![min_len; processor_length]; 
-
-    for element in submatrix_dimensions[0..remaining].iter_mut() {
-      *element += 1;
-    }
-
-    submatrix_dimensions
-  }
-
-  pub fn get_submatrices_dim(&self, matrix_rows : usize, matrix_cols : usize) -> Vec<SubmatrixDim> {
-    let dim_along_y = Self::get_submatrices_dim_along_axis(self.rows, matrix_rows);
-    let dim_along_x = Self::get_submatrices_dim_along_axis(self.cols, matrix_cols);
-
-    dim_along_y.iter().fold((0, Vec::new()), |(start_row, mut result), &height| {
-      dim_along_x.iter().fold(0, |start_col, &width| {
-        result.push(SubmatrixDim {
-          start_row,
-          start_col,
-          width,
-          height,
-        });
-        start_col + width
-      });
-      (start_row + height, result)
-      }).1
-  }
-
-  fn get_matrix_slices<K:Clone>(matrix : &Vec<Vec<K>>, dims : &Vec<SubmatrixDim>) -> Vec<Vec<Vec<K>>> {
-    dims.iter().map(|&dim| 
-      matrix.iter().skip(dim.start_row).take(dim.height)
-         .map(|row| row.iter().skip(dim.start_col).take(dim.width).cloned().collect::<Vec<_>>())
-         .collect::<Vec<_>>()
-    ).collect::<Vec<_>>()
-  }
-
-  pub fn get_submatrices<K: Clone>(&self, matrix : &Vec<Vec<K>>) -> Vec<Vec<Vec<K>>> {
-    let matrix_rows = matrix.len();
-    let matrix_cols = matrix[0].len();
-
-    let submatrices_dim = self.get_submatrices_dim(matrix_rows, matrix_cols);
-    
-    Self::get_matrix_slices(matrix, &submatrices_dim)
-  }
-
-  pub fn run_core<F> (&mut self, f: F, mut core_info : TaurusCoreInfo<T>) 
+  pub fn run_core<F> (&mut self, f: F, mut core_info : CoreType) 
   where
-      F: FnOnce(&mut TaurusCoreInfo<T>) -> H + Send + 'static,
+      F: FnOnce(&mut CoreType) -> H + Send + 'static,
   {
         let handle = thread::spawn(move || {
           let result = f(&mut core_info);
-          core_info.core_debug.set_elapsed();
+          core_info.end_debug();
           (result, core_info)
         });
         self.handles.push(handle);
@@ -279,7 +250,7 @@ impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
     while !self.handles.is_empty() {
       let handle = self.handles.pop().unwrap();
       let (result, core) = handle.join().unwrap();
-      self.debugs.push(core.core_debug);
+      self.debugs.push(core.get_debug());
       results.push(result);
     }
     results
@@ -291,6 +262,64 @@ impl<H : Sendable + 'static, T : Sendable + 'static> Processor<H, T> {
                debug.row, debug.col, debug.get_last_elapsed().as_micros());
     }
   }
+}
+
+/// This function returns a Vec containing the dimensions of the submatrices to 
+/// be assigned to each processor given the length of the array of processors 
+/// and the matrix along a given axis
+///
+/// # Arguemnts
+/// * `processor_length` - Length of processor along a given axis
+/// * `matrix_length` - Length of matrix along a given axis
+///
+/// # Returns
+/// Returns the Vec<usize> of length `processor_length` which contains the 
+/// length along the axis of the submatrix to be assigned to each processor
+fn get_submatrices_dim_along_axis(processor_length : usize, matrix_length : usize) -> Vec<usize> {
+  let min_len : usize = matrix_length / processor_length;
+  let remaining : usize = matrix_length - ( processor_length * min_len );
+  let mut submatrix_dimensions : Vec<usize> = vec![min_len; processor_length]; 
+
+  for element in submatrix_dimensions[0..remaining].iter_mut() {
+    *element += 1;
+  }
+
+  submatrix_dimensions
+}
+
+pub fn get_submatrices_dim(processor_rows : usize, processor_cols : usize, matrix_rows : usize, matrix_cols : usize) -> Vec<SubmatrixDim> {
+  let dim_along_y = get_submatrices_dim_along_axis(processor_rows, matrix_rows);
+  let dim_along_x = get_submatrices_dim_along_axis(processor_cols, matrix_cols);
+
+  dim_along_y.iter().fold((0, Vec::new()), |(start_row, mut result), &height| {
+    dim_along_x.iter().fold(0, |start_col, &width| {
+      result.push(SubmatrixDim {
+        start_row,
+        start_col,
+        width,
+        height,
+      });
+      start_col + width
+    });
+    (start_row + height, result)
+    }).1
+}
+
+fn get_matrix_slices<K:Clone>(matrix : &Vec<Vec<K>>, dims : &Vec<SubmatrixDim>) -> Vec<Vec<Vec<K>>> {
+  dims.iter().map(|&dim| 
+    matrix.iter().skip(dim.start_row).take(dim.height)
+       .map(|row| row.iter().skip(dim.start_col).take(dim.width).cloned().collect::<Vec<_>>())
+       .collect::<Vec<_>>()
+  ).collect::<Vec<_>>()
+}
+
+pub fn get_submatrices<K: Clone>(processor_rows : usize, processor_cols : usize, matrix : &Vec<Vec<K>>) -> Vec<Vec<Vec<K>>> {
+  let matrix_rows = matrix.len();
+  let matrix_cols = matrix[0].len();
+
+  let submatrices_dim = get_submatrices_dim(processor_rows, processor_cols, matrix_rows, matrix_cols);
+  
+  get_matrix_slices(matrix, &submatrices_dim)
 }
 
 

@@ -3,15 +3,17 @@ use std::thread::sleep;
 
 #[test]
 fn general_correct_length(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let bchannels = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let bchannels = processor.build_network();
   assert_eq!(bchannels.len(), 4);
 }
 
 #[test]
 fn general_correct_connection(){
-  let processor : Processor<i32, i32> = Processor::new(2,2);
-  let mut cores = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   cores[0].send(Taurus::UP,1);
   assert_eq!(cores[2].recv(Taurus::DOWN), 1);
@@ -41,8 +43,9 @@ fn general_correct_connection(){
 
 #[test]
 fn general_correct_broadcast(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let mut cores = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
 
   // Check that horizontal broadcast works
   cores[0].send(Taurus::ROW,0);
@@ -66,25 +69,25 @@ fn general_correct_broadcast(){
 
 #[test]
 fn get_submatrices_dim_along_axis_more_processors() {
-  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 4);
+  let submatrices_dims = get_submatrices_dim_along_axis(6, 4);
   assert_eq!(submatrices_dims, vec![1,1,1,1,0,0]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_equal_size() {
-  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(4, 4);
+  let submatrices_dims =get_submatrices_dim_along_axis(4, 4);
   assert_eq!(submatrices_dims, vec![1,1,1,1]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_less_processors() {
-  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 17);
+  let submatrices_dims = get_submatrices_dim_along_axis(6, 17);
   assert_eq!(submatrices_dims, vec![3,3,3,3,3,2]);
 }
 
 #[test]
 fn get_submatrices_dim_along_axis_less_processors_divisible(){
-  let submatrices_dims = Processor::<i32,i32>::get_submatrices_dim_along_axis(6, 18);
+  let submatrices_dims = get_submatrices_dim_along_axis(6, 18);
   assert_eq!(submatrices_dims, vec![3,3,3,3,3,3]);
 }
 
@@ -92,8 +95,7 @@ fn get_submatrices_dim_along_axis_less_processors_divisible(){
 
 #[test]
 fn get_submatrices_dim_square_equal(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let submatrices_dims = processor.get_submatrices_dim(2,2);
+  let submatrices_dims = get_submatrices_dim(2,2,2,2);
   assert_eq!(submatrices_dims[0],
     SubmatrixDim {
       start_row : 0,
@@ -126,8 +128,7 @@ fn get_submatrices_dim_square_equal(){
 
 #[test]
 fn get_submatrices_dim_square_diff(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let submatrices_dims = processor.get_submatrices_dim(3,3);
+  let submatrices_dims = get_submatrices_dim(2,2,3,3);
   assert_eq!(submatrices_dims[0],
     SubmatrixDim {
       start_row : 0,
@@ -194,7 +195,7 @@ fn get_matrix_slices_equal_dim(){
       height : 2,
     },
   ];
-  let submatrices_dims = Processor::<i32,i32>::get_matrix_slices(&m, &dims);
+  let submatrices_dims = get_matrix_slices(&m, &dims);
   assert_eq!(submatrices_dims, 
     vec![
       vec![
@@ -250,7 +251,7 @@ fn get_matrix_slices_diff_dim(){
       height : 1,
     },
   ];
-  let submatrices_dims = Processor::<i32,i32>::get_matrix_slices(&m, &dims);
+  let submatrices_dims = get_matrix_slices(&m, &dims);
   assert_eq!(submatrices_dims, 
     vec![
       vec![
@@ -280,8 +281,7 @@ fn get_submatrices_square_equal(){
     vec![1,2],
     vec![3,4]
   ];
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let submatrices = processor.get_submatrices(&m);
+  let submatrices = get_submatrices(2, 2, &m);
   assert_eq!(submatrices, 
     vec![
       vec![
@@ -306,8 +306,7 @@ fn get_submatrices_square_diff(){
     vec![4,5,6],
     vec![7,8,9]
   ];
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let submatrices = processor.get_submatrices(&m);
+  let submatrices = get_submatrices(2,2,&m);
   assert_eq!(submatrices, 
     vec![
       vec![
@@ -331,8 +330,9 @@ fn get_submatrices_square_diff(){
 
 #[test]
 fn test_core_debug_time_progresses(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let mut cores = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   
   dbg!(cores[2].core_debug.get_curr_elapsed());
@@ -345,8 +345,9 @@ fn test_core_debug_time_progresses(){
 
 #[test]
 fn test_core_debug_time_received_is_less(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let mut cores = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   
   let true_elapsed = cores[2].core_debug.get_curr_elapsed();
@@ -359,8 +360,9 @@ fn test_core_debug_time_received_is_less(){
 
 #[test]
 fn test_core_debug_time_received_is_greater(){
-  let processor : Processor<i32,i32> = Processor::new(2,2);
-  let mut cores = processor.create_taurus();
+  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   
   let true_elapsed = cores[0].core_debug.get_curr_elapsed();
