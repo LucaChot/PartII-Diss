@@ -155,6 +155,10 @@ pub trait NetworkBuilder<T:Sendable> {
 
 pub struct TaurusNetworkBuilder {}
 
+impl TaurusNetworkBuilder{
+  pub fn new() -> Self { TaurusNetworkBuilder {  }}
+}
+
 impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
   type CoreType = TaurusCoreInfo<T>;
 

@@ -1,31 +1,26 @@
 use std::collections::VecDeque;
 
-mod broadcast;
-mod processor;
-mod matrix_multiplication;
-mod types;
+pub mod broadcast;
+pub mod processor;
+pub mod matrix_multiplication;
+pub mod types;
 
-pub use broadcast::Sendable;
-pub use types::{Matrix, Msg};
-use matrix_multiplication::*;
-pub use matrix_multiplication::{Multiplicable, FoxOtto, Cannon, Hash};
-use processor::{TaurusCoreInfo, Processor, TaurusNetworkBuilder, get_submatrices_dim};
-pub use processor::{NetworkBuilder, CoreInfo};
+use broadcast::Sendable;
+use types::Matrix;
+use matrix_multiplication::CommMethod;
+use matrix_multiplication::Multiplicable;
+use processor::{TaurusCoreInfo, Processor, get_submatrices_dim};
 
-pub struct MatMul<T> 
+pub struct MatMul<'a,T> 
 where T : Multiplicable + Sendable + 'static {
-  cores_height : usize, 
-  cores_width : usize,
-  processor : Processor<(usize, usize, Matrix<T>),Matrix<T>, TaurusCoreInfo<Matrix<T>>>
+  processor : &'a mut Processor<(usize, usize, Matrix<T>),Matrix<T>, TaurusCoreInfo<Matrix<T>>>
 }
 
-impl<T> MatMul<T> 
+impl<'a,T> MatMul<'a,T> 
 where T : Multiplicable + Sendable + 'static {
-  pub fn new(p_height : usize, p_width: usize) -> Self {
+  pub fn new(processor : &'a mut Processor<(usize, usize, Matrix<T>),Matrix<T>, TaurusCoreInfo<Matrix<T>>>) -> Self {
     MatMul {
-      cores_height : p_height,
-      cores_width : p_width,
-      processor : Processor::new(p_height, p_width, Box::new(TaurusNetworkBuilder {})),
+      processor 
     }
   }
 
@@ -37,7 +32,7 @@ where T : Multiplicable + Sendable + 'static {
 
     // Assign the final values to the W and P matrix
     for (i, j, c)  in core_results {
-      let index = i * self.cores_width + j;
+      let index = i * self.processor.cols + j;
       let submatrix_dim = submatrices_dim[index];
       for i in 0..submatrix_dim.height {
         for j in 0..submatrix_dim.width {
@@ -57,12 +52,12 @@ where T : Multiplicable + Sendable + 'static {
     let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_b[0].len());
     let mut submatrices_c = F::outer_setup_c(self.processor.rows, self.processor.cols, &matrix_c);
 
-    for i in 0..self.cores_height {
-      for j in 0..self.cores_width {
+    for i in 0..self.processor.rows {
+      for j in 0..self.processor.cols {
         // Assign each thread its corresponding channels
         let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
-        let iterations = self.cores_height;
+        let iterations = self.processor.rows;
 
         // Assign each threads matrix component
         let a = submatrices_a.pop_front().unwrap();
@@ -80,7 +75,6 @@ where T : Multiplicable + Sendable + 'static {
 
     let core_results = self.processor.collect_results();
     self.collect_c(&core_results, &mut matrix_c);
-    self.processor.display_processor_time();
     matrix_c
   }   
 
@@ -94,12 +88,12 @@ where T : Multiplicable + Sendable + 'static {
     let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_a[0].len());
     let mut submatrices_c = F::outer_setup_c(self.processor.rows, self.processor.cols, &matrix_c);
 
-    for i in 0..self.cores_height {
-      for j in 0..self.cores_width {
+    for i in 0..self.processor.rows {
+      for j in 0..self.processor.cols {
         // Assign each thread its corresponding channels
         let core_info = cores_info.pop_front().unwrap();
         // Sender for returning the results
-        let inner_iterations = self.cores_height;
+        let inner_iterations = self.processor.rows;
 
         // Assign each threads matrix component
         let mut a = submatrices_a.pop_front().unwrap();
@@ -121,7 +115,6 @@ where T : Multiplicable + Sendable + 'static {
 
     let core_results = self.processor.collect_results();
     self.collect_c(&core_results, &mut matrix_c);
-    self.processor.display_processor_time();
     matrix_c
   }
 }
