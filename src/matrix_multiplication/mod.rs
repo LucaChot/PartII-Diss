@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use crate::processor::{TaurusCoreInfo, Processor, CoreInfo, Taurus};
+use crate::processor::{TaurusCoreInfo, CoreInfo, Taurus, get_submatrices};
 use crate::broadcast::Sendable;
 use crate::types::Matrix;
 
@@ -28,17 +28,14 @@ fn serial_matrix_multiplication<T : Multiplicable + Clone>(matrix_a : &Matrix<T>
 
 //TODO : Implement default
 pub trait ParallelMatMult {
-  fn outer_setup_a<K : Clone, H : Sendable, T : Sendable>(matrix_a : &Matrix<K>,
-                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
-    VecDeque::from(processor.get_submatrices(matrix_a))
+  fn outer_setup_a<K : Clone>(rows : usize, cols : usize, matrix_a : &Matrix<K>) -> VecDeque<Matrix<K>> {
+    VecDeque::from(get_submatrices(rows, cols, matrix_a))
   }
-  fn outer_setup_b<K : Clone, H : Sendable, T : Sendable>(matrix_b : &Matrix<K>,
-                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
-    VecDeque::from(processor.get_submatrices(matrix_b))
+  fn outer_setup_b<K : Clone>(rows : usize, cols : usize, matrix_b : &Matrix<K>,) -> VecDeque<Matrix<K>> {
+    VecDeque::from(get_submatrices(rows, cols, matrix_b))
   }
-  fn outer_setup_c<K : Clone, H : Sendable, T : Sendable>(matrix_c : &Matrix<K>,
-                                 processor : &Processor<H, T>) -> VecDeque<Matrix<K>> {
-    VecDeque::from(processor.get_submatrices(matrix_c))
+  fn outer_setup_c<K : Clone>(rows : usize, cols : usize, matrix_c : &Matrix<K>,) -> VecDeque<Matrix<K>> {
+    VecDeque::from(get_submatrices(rows, cols, matrix_c))
   }
   fn inner_setup_a<T:Sendable>(a : Matrix<T>, _ : &mut TaurusCoreInfo<Matrix<T>>) 
     -> Matrix<T> {
@@ -104,12 +101,11 @@ pub struct Cannon;
 
 
 impl ParallelMatMult for Cannon {
-  fn outer_setup_a<K : Clone, H : Sendable, T : Sendable>( matrix_a : &Matrix<K>,
-                                 processor : &Processor<H,T>) -> VecDeque<Matrix<K>> {
-    let submatrices_a = VecDeque::from(processor.get_submatrices(matrix_a));
-    let indices : Vec<usize> = (0..processor.rows)
-      .flat_map(|row| (0..processor.cols)
-                .map(|col| row * processor.cols +((processor.cols + col - row) % processor.cols))
+  fn outer_setup_a<K : Clone>(rows : usize, cols : usize, matrix_a : &Matrix<K>,) -> VecDeque<Matrix<K>> {
+    let submatrices_a = VecDeque::from(get_submatrices(rows, cols, matrix_a));
+    let indices : Vec<usize> = (0..rows)
+      .flat_map(|row| (0..cols)
+                .map(|col| row * cols +((cols + col - row) % cols))
                 .collect::<Vec<_>>())
       .collect();
     let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<K>>>();
@@ -118,12 +114,11 @@ impl ParallelMatMult for Cannon {
     return result;
   }
 
-  fn outer_setup_b<K : Clone, H : Sendable, T : Sendable>(matrix_b : &Matrix<K>,
-                                 processor : &Processor<H,T>) -> VecDeque<Matrix<K>> {
-    let submatrices_b = VecDeque::from(processor.get_submatrices(matrix_b));
-    let indices : Vec<usize> = (0..processor.rows)
-      .flat_map(|row| (0..processor.cols)
-                .map(|col| ((processor.rows + row - col) % processor.rows) * processor.cols + col)
+  fn outer_setup_b<K : Clone>(rows : usize, cols : usize, matrix_b : &Matrix<K>,) -> VecDeque<Matrix<K>> {
+    let submatrices_b = VecDeque::from(get_submatrices(rows, cols, matrix_b));
+    let indices : Vec<usize> = (0..rows)
+      .flat_map(|row| (0..cols)
+                .map(|col| ((rows + row - col) % rows) * cols + col)
                 .collect::<Vec<_>>())
       .collect();
     let mut result = indices.iter().map(|_| Vec::new()).collect::<VecDeque<Matrix<K>>>();
