@@ -1,10 +1,11 @@
-use crate::{Algorithm, Comm};
+use crate::MatMul;
+use crate::matrix_multiplication::{Hash, Cannon, FoxOtto};
 use crate::types::{Matrix, Msg};
 
 #[test]
 #[ignore]
 fn test_hash_matrix_mult_api() {
-  let mut p : Algorithm<isize> = Algorithm::new(2,2);
+  let mut p : MatMul<isize> = MatMul::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -18,7 +19,7 @@ fn test_hash_matrix_mult_api() {
     vec![3,2,1],
   ];
 
-  let c = p.parallel_mult(matrix_a, matrix_b, Comm::BROADCAST);
+  let c = p.parallel_mult::<Hash>(matrix_a, matrix_b);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -31,7 +32,7 @@ fn test_hash_matrix_mult_api() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult() {
-  let mut p : Algorithm<isize> = Algorithm::new(2,2);
+  let mut p : MatMul<isize> = MatMul::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -45,7 +46,7 @@ fn test_fox_otto_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parallel_mult(matrix_a, matrix_b, Comm::FOXOTTO);
+  let c = p.parallel_mult::<FoxOtto>(matrix_a, matrix_b);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -58,7 +59,7 @@ fn test_fox_otto_matrix_mult() {
 #[test]
 #[ignore]
 fn test_cannon_matrix_mult() {
-  let mut p : Algorithm<isize> = Algorithm::new(2,2);
+  let mut p : MatMul<isize> = MatMul::new(2,2);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -72,7 +73,7 @@ fn test_cannon_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parallel_mult(matrix_a, matrix_b, Comm::CANNON);
+  let c = p.parallel_mult::<Cannon>(matrix_a, matrix_b);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -85,7 +86,7 @@ fn test_cannon_matrix_mult() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult_with_reduction() {
-  let mut p : Algorithm<Msg> = Algorithm::new(3,3);
+  let mut p : MatMul<Msg> = MatMul::new(3,3);
   
   // P matrix
   let p_matrix: Vec<Vec<usize>> = vec![
@@ -112,7 +113,7 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   let matrix_m = Msg::zip(w_matrix, p_matrix);
   
   let iterations = f64::ceil(f64::log2(matrix_m.len() as f64)) as usize;
-  let c = p.parallel_square(matrix_m, iterations, Comm::FOXOTTO);
+  let c = p.parallel_square::<FoxOtto>(matrix_m, iterations);
 
   let (result_w, result_p) = Msg::unzip(c);
 
