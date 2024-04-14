@@ -1,7 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use Simulator::MatMul;
-use Simulator::matrix_multiplication::{Hash, FoxOtto, Cannon};
-use Simulator::processor::{Processor, TaurusNetworkBuilder};
+use sim::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon}};
+use sim::processor::{Processor, TaurusNetworkBuilder};
 
 // TODO: Implement benchmarks with changing matrix sizes and processor sizes
 pub fn mult_benchmark(c: &mut Criterion) {

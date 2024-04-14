@@ -252,11 +252,16 @@ impl<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T>> Proc
     results
   }
 
-  pub fn display_processor_time (&self) {
+  pub fn display_debug_time (&self) {
     for debug in &self.debugs {
       println!("Core {} {} elapsed time: {}µs",
                debug.row, debug.col, debug.get_last_elapsed().as_micros());
     }
+  }
+
+  pub fn max_debug_time (&self) ->  Option<u128>{
+    self.debugs.iter().map(|debug| debug.get_last_elapsed().as_micros()).max()
+
   }
 }
 

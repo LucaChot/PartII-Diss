@@ -1,4 +1,5 @@
 use super::*;
+use super::comm_method::*;
 
 #[test]
 fn test_serial_matrix_multiplication_square(){
@@ -13,7 +14,7 @@ fn test_serial_matrix_multiplication_square(){
   ];
 
   let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
+  let result = serial_matmul(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],
@@ -35,7 +36,7 @@ fn test_serial_matrix_multiplication_non_square(){
 
   let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
 
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
+  let result = serial_matmul(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],

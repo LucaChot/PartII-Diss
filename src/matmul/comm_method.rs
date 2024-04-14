@@ -2,29 +2,8 @@ use std::collections::VecDeque;
 use crate::processor::{TaurusCoreInfo, CoreInfo, Taurus, get_submatrices};
 use crate::broadcast::Sendable;
 use crate::types::Matrix;
+use super::{Multiplicable, serial_matmul};
 
-pub trait Multiplicable { 
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> where Self: Sized;
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self;
-}
-
-fn serial_matrix_multiplication<T : Multiplicable + Clone>(matrix_a : &Matrix<T>,
-                                                       matrix_b : &Matrix<T>,
-                                                       matrix_c : &Matrix<T>)
--> Matrix<T>{
-  let rows_a = matrix_a.len();
-  let cols_b = matrix_b[0].len();
-  let cols_a = matrix_a[0].len();
-
-  (0..rows_a)
-    .map(|i| 
-      (0..cols_b)
-        .map(|j| 
-          (0..cols_a)
-            .fold(matrix_c[i][j].clone(), |acc, k| T::singleton_matrix::<T>(matrix_a[i][k].clone(), matrix_b[k][j].clone(), acc))
-        ).collect::<Vec<T>>()
-    ).collect::<Matrix<T>>()
-}
 
 pub trait CommMethod<T: Multiplicable + Sendable, CoreType : CoreInfo<Matrix<T>>> {
   fn outer_setup_a(rows : usize, cols : usize, matrix_a : &Matrix<T>) -> VecDeque<Matrix<T>> {
@@ -68,7 +47,7 @@ impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for Hash
       let received_a = core_info.recv(Taurus::ROW);
       let received_b = core_info.recv(Taurus::COL);
 
-      matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
+      matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
     }
     return matrix_c;
   }
@@ -89,7 +68,7 @@ impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for FoxOtto
       }
       let received_a = core_info.recv(Taurus::ROW);
       
-      matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
+      matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
       
       core_info.send(Taurus::UP, received_b);
       received_b = core_info.recv(Taurus::DOWN);
@@ -157,7 +136,7 @@ impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for Cannon
     let mut received_b = matrix_b;
 
     for _ in 0..iterations {
-      matrix_c = serial_matrix_multiplication(&received_a, &received_b, &matrix_c);
+      matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
       
       core_info.send(Taurus::LEFT, received_a);
       core_info.send(Taurus::UP, received_b);
@@ -167,7 +146,3 @@ impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for Cannon
     return matrix_c;
   }
 }
-
-    
-#[cfg(test)]
-mod tests;
