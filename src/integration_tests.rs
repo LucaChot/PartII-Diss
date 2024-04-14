@@ -137,4 +137,3 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   ]);
 
 }
-
