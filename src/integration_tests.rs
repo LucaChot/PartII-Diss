@@ -1,6 +1,5 @@
-use crate::MatMul;
+use crate::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon}};
 use crate::processor::{Processor, TaurusNetworkBuilder};
-use crate::matrix_multiplication::{Hash, Cannon, FoxOtto};
 use crate::types::{Matrix, Msg};
 
 #[test]

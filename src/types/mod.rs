@@ -1,7 +1,7 @@
 use std::fmt::{Debug,Display,Formatter,Result};
 use std::time::Duration;
-use crate::Sendable;
-use crate::Multiplicable;
+use crate::broadcast::Sendable;
+use crate::matmul::Multiplicable;
 
 #[derive(Clone,Debug)]
 pub struct Msg {
