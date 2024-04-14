@@ -1,4 +1,5 @@
 use super::*;
+use super::comm_method::*;
 
 #[test]
 fn test_serial_matrix_multiplication_square(){
@@ -13,7 +14,7 @@ fn test_serial_matrix_multiplication_square(){
   ];
 
   let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
+  let result = serial_matmul(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],
@@ -35,7 +36,7 @@ fn test_serial_matrix_multiplication_non_square(){
 
   let matrix_c : Matrix<isize> = isize::neutral_element(matrix_a.len(), matrix_b[0].len());
 
-  let result = serial_matrix_multiplication(&matrix_a, &matrix_b, &matrix_c);
+  let result = serial_matmul(&matrix_a, &matrix_b, &matrix_c);
 
   assert_eq!(result, vec![
     vec![7,10],
@@ -57,8 +58,7 @@ fn test_cannon_shift_a(){
     vec![ vec![8] ], vec![ vec![6] ], vec![ vec![7] ],
   ];
 
-  let processor : Processor<isize,isize> = Processor::new(3,3);
-  let result = Cannon::outer_setup_a(&matrix_a, &processor);
+  let result = Cannon::outer_setup_a(3,3,&matrix_a);
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
@@ -79,8 +79,7 @@ fn test_cannon_shift_b(){
     vec![ vec![6] ], vec![ vec![1] ], vec![ vec![5] ],
   ];
 
-  let processor : Processor<isize,isize> = Processor::new(3,3);
-  let result = Cannon::outer_setup_b(&matrix_b, &processor);
+  let result = Cannon::outer_setup_b(3,3, &matrix_b);
 
   for (res, correct) in result.iter().zip(correct.iter()) {
     assert_eq!(res, correct);
