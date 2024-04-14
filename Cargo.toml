@@ -3,6 +3,14 @@ name = "project"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "Simulator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "logical_measures" 
+path = "src/bin/logical_measures/main.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dev-dependencies]
 criterion = "0.5.1"
