@@ -261,7 +261,14 @@ impl<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T>> Proc
 
   pub fn max_debug_time (&self) ->  Option<u128>{
     self.debugs.iter().map(|debug| debug.get_last_elapsed().as_micros()).max()
+  }
 
+  pub fn debug_direct_counts (&self) -> Vec<usize> {
+    self.debugs.iter().map(|debug| debug.direct_count).collect()
+  }
+
+  pub fn debug_broadcast_counts (&self) -> Vec<usize> {
+    self.debugs.iter().map(|debug| debug.broadcast_count).collect()
   }
 }
 
