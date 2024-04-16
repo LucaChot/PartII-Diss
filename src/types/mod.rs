@@ -69,6 +69,8 @@ impl Multiplicable for Msg {
   }
 }
 
+impl Sendable for () {}
+
 impl Sendable for isize {}
 impl Multiplicable for isize {
   fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> {
@@ -103,6 +105,8 @@ impl<T:Sendable> Sendable for Vec<Vec<T>> {}
 pub type Matrix<T> = Vec<Vec<T>>;
 
 impl Sendable for Duration {}
+
+impl<X:Sendable> Sendable for Option<X> {}
 
 impl<X:Sendable, Y:Sendable> Sendable for (X,Y) {}
 impl<X:Sendable, Y:Sendable, Z:Sendable> Sendable for (X,Y,Z) {}
