@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use crate::processor::debug::CoreDebugger;
 use crate::processor::{TaurusCoreInfo, Processor, get_submatrices_dim};
 use crate::broadcast::Sendable;
 use crate::types::Matrix;
@@ -82,12 +83,12 @@ where T : Multiplicable + Sendable + 'static {
         let b = submatrices_b.pop_front().unwrap();
         let c = submatrices_c.pop_front().unwrap();
 
-        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>| {
-          let c = F::matrix_mult(a, b, c, iterations, core_info);
+        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>, debugger : &mut CoreDebugger| {
+          let c = F::matrix_mult(a, b, c, iterations, core_info, &mut Some(debugger));
           (i,j,c)
         };
 
-        self.processor.run_core(core_function, core_info);
+        self.processor.run_debug_core(core_function, core_info);
       }
     }
 
@@ -118,16 +119,17 @@ where T : Multiplicable + Sendable + 'static {
         let mut b = submatrices_b.pop_front().unwrap();
         let mut c = submatrices_c.pop_front().unwrap();
 
-        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>| {
+        let core_function = move |core_info: &mut TaurusCoreInfo<Vec<Vec<T>>>, debugger : &mut CoreDebugger| {
+          let mut debug = Some(debugger);
           for _ in 0..outer_iterations{
-            c = F::matrix_mult(a, b, c, inner_iterations, core_info);
-            a = F::inner_setup_a(c.clone(), core_info);
-            b = F::inner_setup_b(c.clone(), core_info);
+            c = F::matrix_mult(a, b, c, inner_iterations, core_info, &mut debug);
+            a = F::inner_setup_a(c.clone(), core_info, &mut debug);
+            b = F::inner_setup_b(c.clone(), core_info, &mut debug);
           }
           (i,j,c)
         };
 
-        self.processor.run_core(core_function, core_info);
+        self.processor.run_debug_core(core_function, core_info);
       }
     }
 

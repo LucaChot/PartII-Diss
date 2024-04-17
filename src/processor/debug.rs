@@ -28,7 +28,7 @@ impl CoreDebugger {
   pub fn update_elapsed(&mut self, outer : Duration) {
     let current = self.get_curr_elapsed();
     if current < outer {
-      self.core_debug.additional = outer - self.thread_time.elapsed()
+      self.core_debug.additional += outer - current
     }
   }
 

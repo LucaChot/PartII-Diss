@@ -33,8 +33,8 @@ pub trait CoreInfo<T : Sendable> : Send {
 
   fn get_row(&self) -> usize;
   fn get_col(&self) -> usize;
-  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : Option<&mut CoreDebugger>);
-  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : Option<&mut CoreDebugger>) -> T;
+  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : &mut Option<&mut CoreDebugger>);
+  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : &mut Option<&mut CoreDebugger>) -> T;
   fn send(&mut self, ch_option : Self::ChannelOption, data : T);
   fn recv(&mut self, ch_option : Self::ChannelOption) -> T;
 }
@@ -57,8 +57,8 @@ pub struct TaurusCoreInfo<T : Sendable> {
 impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
   type ChannelOption = Taurus;
 
-  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : Option<&mut CoreDebugger>){
-    let elapsed =  match &debugger {
+  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : &mut Option<&mut CoreDebugger>){
+    let elapsed =  match debugger {
       Some(core_debugger) => Some(core_debugger.get_curr_elapsed()),
       None => None,
     };
@@ -82,7 +82,7 @@ impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
   }
 
 
-  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : Option<&mut CoreDebugger>) -> T{
+  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : &mut Option<&mut CoreDebugger>) -> T{
     let (data, recv_time) = match ch_option {
       Taurus::LEFT => self.core_comm.left.recv(),
       Taurus::RIGHT => self.core_comm.right.recv(),
@@ -103,10 +103,10 @@ impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
   }
 
   fn send(&mut self, ch_option : Self::ChannelOption, data : T) {
-    self.debug_send(ch_option, data, None)
+    self.debug_send(ch_option, data, &mut None)
   }
   fn recv(&mut self, ch_option : Self::ChannelOption) -> T{
-    self.debug_recv(ch_option, None)
+    self.debug_recv(ch_option, &mut None)
   }
 
   fn get_row(&self) -> usize {

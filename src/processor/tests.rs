@@ -343,12 +343,12 @@ fn test_core_debug_time_progresses(){
       continue
     }
     dbg!(&debugger.get_curr_elapsed().as_millis());
-    core_info.debug_send(Taurus::LEFT,1, Some(debugger));
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
   };
 
   let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
     dbg!(&debugger.get_curr_elapsed().as_millis());
-    core_info.debug_recv(Taurus::RIGHT, Some(debugger));
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
     dbg!(&debugger.get_curr_elapsed().as_millis());
   };
 
@@ -376,12 +376,12 @@ fn test_core_debug_time_handles_sleep(){
     sleep(Duration::new(2, 0));
 
     dbg!(&debugger.get_curr_elapsed().as_millis());
-    core_info.debug_send(Taurus::LEFT,1, Some(debugger));
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
     dbg!(&debugger.get_curr_elapsed().as_millis());
   };
 
   let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
-    core_info.debug_recv(Taurus::RIGHT, Some(debugger));
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
   };
 
   processor.run_debug_core(p3, cores.pop().unwrap());
@@ -405,7 +405,7 @@ fn test_core_debug_time_received_is_less(){
   
   let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
     dbg!(&debugger.get_curr_elapsed().as_millis());
-    core_info.debug_send(Taurus::LEFT,1, Some(debugger));
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
     dbg!(&debugger.get_curr_elapsed().as_millis());
   };
 
@@ -415,7 +415,7 @@ fn test_core_debug_time_received_is_less(){
       continue
     }
     dbg!(&debugger.get_curr_elapsed().as_millis());
-    core_info.debug_recv(Taurus::RIGHT, Some(debugger));
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
     dbg!(&debugger.get_curr_elapsed().as_millis());
   };
 
