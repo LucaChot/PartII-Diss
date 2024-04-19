@@ -104,22 +104,22 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   ];
 
   // W matrix
-  let w_matrix: Vec<Vec<isize>> = vec![
-    vec![ 0, 6, 2, 3,-1,-1,-1],
-    vec![-1, 0,-1,-1, 1,-1,-1],
-    vec![-1,-1, 0,-1,-1, 2, 1],
-    vec![-1,-1,-1, 0,-1,-1, 2],
-    vec![-1,-1,-1,-1, 0,-1,-1],
-    vec![-1, 1,-1,-1,-1, 0,-1],
-    vec![-1,-1,-1,-1,-1,-1, 0],
+  let w_matrix: Vec<Vec<f64>> = vec![
+    vec![ 0.0, 6.0, 2.0, 3.0,-1.0,-1.0,-1.0],
+    vec![-1.0, 0.0,-1.0,-1.0, 1.0,-1.0,-1.0],
+    vec![-1.0,-1.0, 0.0,-1.0,-1.0, 2.0, 1.0],
+    vec![-1.0,-1.0,-1.0, 0.0,-1.0,-1.0, 2.0],
+    vec![-1.0,-1.0,-1.0,-1.0, 0.0,-1.0,-1.0],
+    vec![-1.0, 1.0,-1.0,-1.0,-1.0, 0.0,-1.0],
+    vec![-1.0,-1.0,-1.0,-1.0,-1.0,-1.0, 0.0],
   ];
 
-  let matrix_m = Msg::zip(w_matrix, p_matrix);
+  let matrix_m = Msg::zip(&w_matrix, &p_matrix);
   
   let iterations = f64::ceil(f64::log2(matrix_m.len() as f64)) as usize;
   let c = p.parallel_square::<FoxOtto>(matrix_m, iterations);
 
-  let (result_w, result_p) = Msg::unzip(c);
+  let (result_w, result_p) = Msg::unzip(&c);
 
   assert_eq!(result_p, vec![
     vec![0,5,0,0,1,2,2],
@@ -132,13 +132,13 @@ fn test_fox_otto_matrix_mult_with_reduction() {
   ]);
 
   assert_eq!(result_w, vec![
-    vec![ 0, 5, 2, 3, 6, 4, 3],
-    vec![-1, 0,-1,-1, 1,-1,-1],
-    vec![-1, 3, 0,-1, 4, 2, 1],
-    vec![-1,-1,-1, 0,-1,-1, 2],
-    vec![-1,-1,-1,-1, 0,-1,-1],
-    vec![-1, 1,-1,-1, 2, 0,-1],
-    vec![-1,-1,-1,-1,-1,-1, 0],
+    vec![ 0.0, 5.0, 2.0, 3.0, 6.0, 4.0, 3.0],
+    vec![-1.0, 0.0,-1.0,-1.0, 1.0,-1.0,-1.0],
+    vec![-1.0, 3.0, 0.0,-1.0, 4.0, 2.0, 1.0],
+    vec![-1.0,-1.0,-1.0, 0.0,-1.0,-1.0, 2.0],
+    vec![-1.0,-1.0,-1.0,-1.0, 0.0,-1.0,-1.0],
+    vec![-1.0, 1.0,-1.0,-1.0, 2.0, 0.0,-1.0],
+    vec![-1.0,-1.0,-1.0,-1.0,-1.0,-1.0, 0.0],
   ]);
 
 }
