@@ -16,34 +16,43 @@ fn create_node_vec(edges : &Vec<Rc<Edge>>, num_nodes : usize) -> Vec<Node> {
   nodes
 }
 
-fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize) -> usize {
-  let mut next_node : usize; 
-  {
-    let mut rf_visited = nodes[node_index].visited.borrow_mut();
+fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize){
+  let mut stack : Vec<(usize, Option<Rc<Edge>>)> = Vec::new();
+  stack.push((0,None));
+  let mut order = 0;
+  while !stack.is_empty() {
+    let curr_node = match stack.pop().unwrap() {
+      (node_id, None) => node_id,
+      (node_id, Some(edge)) => {
+        let mut rf_visited = (*edge).visited.borrow_mut();
+        *rf_visited = true;
+        let mut rf_order = (*edge).order.borrow_mut();
+        *rf_order = order;
+        order += 1;
+        node_id
+      }
+    };
+    let mut rf_visited = nodes[curr_node].visited.borrow_mut();
     if *rf_visited {
-      return order;
+      continue;
     }
     *rf_visited = true;
-  }
-  for edge in nodes[node_index].rc_edge.iter() {
-    { 
-      let mut rf_visited = (*edge).visited.borrow_mut();
-      if *rf_visited == true {
-        continue;
-      }
-      let mut rf_order = (*edge).order.borrow_mut();
-      *rf_visited = true;
-      *rf_order = order;
-      if node_index == (*edge).node_a {
-        next_node = (*edge).node_b;
-      } else {
-        next_node = (*edge).node_a;
+
+    for edge in nodes[curr_node].rc_edge.iter() {
+      { 
+        let rf_visited = (*edge).visited.borrow_mut();
+        if *rf_visited == true {
+          continue;
+        }
+        let next_node = if curr_node == (*edge).node_a {
+          (*edge).node_b
+        } else {
+          (*edge).node_a
+        };
+        stack.push((next_node, Some(Rc::clone(edge))));
       }
     }
-    order += 1;
-    order = visit_node(nodes, next_node, order);
   }
-  order
 }
 
 fn sort_edges_by_order(edges : &mut Vec<Rc<Edge>>) {
@@ -232,6 +241,7 @@ fn remove_val_2_nodes (input_file : &str) -> (Vec<Rc<Edge>>, Vec<Chain>) {
   
   visit_node(&nodes, 0, 0);
   sort_edges_by_order(&mut edges);
+  dbg!(&edges);
 
   remove_edges(edges, &nodes)
 }
@@ -244,6 +254,7 @@ pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes :
   println!("Reached here");
   visit_node(&nodes, 0, 0);
   sort_edges_by_order(&mut edges);
+  dbg!(&edges);
 
   let (mut reduced_edges, chains) = remove_edges(edges, &nodes);
   update_chain_nodes(&chains, &mut nodes);

@@ -100,6 +100,8 @@ fn test_removal_cycle(){
 fn test_removal_complex(){
   let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/complex.txt");
 
+  dbg!(&chains);
+
   assert_eq!(*edges[0], Edge::new(0,5,1.0));
   assert_eq!(*edges[1], Edge::new(4,5,1.0));
   assert_eq!(*edges[2], Edge::new(5,6,1.0));
