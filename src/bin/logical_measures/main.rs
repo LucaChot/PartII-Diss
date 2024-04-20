@@ -1,158 +1,155 @@
-use sim::matmul::{MatMul, comm_method::{Hash, CommMethod, FoxOtto, Cannon}};
-use sim::processor::{Processor, TaurusNetworkBuilder, TaurusCoreInfo};
-use sim::types::Matrix;
-
-use serde::{Serialize, Deserialize};
-use std::any::type_name;
-use std::fmt;
+use clap_derive::ValueEnum;
+use sim::matmul::comm_method::{Hash, FoxOtto, Cannon};
 use std::fs::File;
 use std::io::prelude::*;
 
-const ITERATIONS : usize = 20;
+mod bench;
+mod commands;
+use bench::Group;
+use commands::{against_matrices, against_processor, against_matrices_all, against_processor_all};
 
-// Define a struct representing your data
-#[derive(Serialize, Deserialize)]
-struct Run {
-    matrix_size : usize,
-    processor_size : usize,
-    data: Vec<u128>,
+use clap::{Parser, Subcommand};
+
+/// Simple program to greet a person
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    /// Benchmark to run
+    #[command(subcommand)]
+    command: Command,
+
+    /// Specify a communication method
+    #[arg(value_enum)]
+    comm: Option<CliComm>,
+    
+    /// File to write json to
+    #[arg(short, long)]
+    output: String,
+
+    /// Number of iterations per run
+    #[arg(short, long, default_value_t = 20)]
+    iter: usize,
+
 }
 
-impl Run {
-  pub fn new(matrix_size : usize, processor_size : usize) -> Self {
-    Run { matrix_size, processor_size, data : Vec::new() }
-  }
-}
-
-#[derive(Serialize, Deserialize)]
-struct Bench {
-    name: String,
-    data: Vec<Run>,
-}
-
-impl Bench {
-  pub fn new(name : String) -> Self {
-    Bench { name, data : Vec::new() }
-  }
-}
-
-impl fmt::Display for Bench {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+#[derive(Subcommand)]
+pub enum Command {
+    /// Iterate over matrix sizes
+    Matrix {
+      /// Starting matrix size
+      #[arg(long)]
+      start: usize,
+      /// Limit matrix size
+      #[arg(long)]
+      end: usize,
+      /// Size of increments
+      #[arg(long)]
+      step: usize,
+      /// Number of cores
+      #[arg(long)]
+      proc: usize,
+    },
+    /// Iterate over processor sizes
+    Processor {
+      /// Starting processor size
+      #[arg(long)]
+      start: usize,
+      /// Limit processor size
+      #[arg(long)]
+      end: usize,
+      /// Size of increments
+      #[arg(long)]
+      step: usize,
+      /// Size of matrices
+      #[arg(long)]
+      matrix: usize,
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct Group {
-  name : String,
-  data : Vec<Bench>
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum CliComm {
+  /// Simple Broadcast
+  Hash,
+  /// FoxOtto
+  FoxOtto,
+  /// Cannon
+  Cannon,
 }
 
-impl Group {
-  pub fn new(name: String) -> Self {
-    Group { name, data: Vec::new() }
-  }
-}
-
-impl fmt::Display for Group {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
+impl CliComm {
+  fn display(&self) -> &str {
+    match self {
+      Self::Hash => "Hash",
+      Self::FoxOtto => "FoxOtto",
+      Self::Cannon => "Cannon",
     }
-}
-
-#[derive(Serialize, Deserialize)]
-struct Groups {
-  data : Vec<Group>
-}
-
-impl Groups {
-  pub fn new() -> Self {
-    Groups { data: Vec::new() }
   }
 }
+  
 
-
-fn against_processor<T>(proc_sizes : impl Iterator<Item = usize>, matrix_size : usize) -> Bench
-where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
-  let mut bench = Bench::new(format!("{} vs Processor", type_name::<T>()));
-  println!("Running {bench}");
-  for processor_size in proc_sizes {
-    let mut run = Run::new(matrix_size, processor_size);
-    for _ in 0..ITERATIONS {
-      let a = vec![vec![0; matrix_size]; matrix_size];
-      let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let mut processor = Processor::new(processor_size, processor_size, Box::new(TaurusNetworkBuilder::new()));
-      let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
-      matmul.parallel_square::<T>(a,iterations);
-      match processor.max_debug_time() {
-        Some(time) => run.data.push(time),
-        _ => ()
-      };
-    }
-    bench.data.push(run);
-  }
-  bench
-}
-fn against_processor_all(proc_sizes : impl Iterator<Item = usize> + Clone, matrix_size : usize) -> Group {
-  let mut group = Group::new(format!("All vs Processor"));
-  println!("Running {group}");
-  group.data.push(against_processor::<Hash>(proc_sizes.clone(), matrix_size));
-  group.data.push(against_processor::<FoxOtto>(proc_sizes.clone(), matrix_size));
-  group.data.push(against_processor::<Cannon>(proc_sizes.clone(), matrix_size));
-  group
-}
-
-fn against_matrices<T>(proc_size : usize, matrix_sizes : impl Iterator<Item = usize>) -> Bench
-where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
-  let mut bench = Bench::new(format!("{} vs Matrices", type_name::<T>()));
-  println!("Running {bench}");
-  for matrix_size in matrix_sizes {
-    let mut run = Run::new(matrix_size, proc_size);
-    for _ in 0..ITERATIONS {
-      let a = vec![vec![0; matrix_size]; matrix_size];
-      let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let mut processor = Processor::new(proc_size, proc_size, Box::new(TaurusNetworkBuilder::new()));
-      let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
-      matmul.parallel_square::<T>(a,iterations);
-      match processor.max_debug_time() {
-        Some(time) => run.data.push(time),
-        _ => ()
-      };
-    }
-    bench.data.push(run);
-  }
-  bench
-}
-
-fn against_matrices_all(proc_size : usize, matrix_sizes : impl Iterator<Item=usize> + Clone) -> Group {
-  let mut group = Group::new(format!("All vs Matrices"));
-  println!("Running {group}");
-  group.data.push(against_matrices::<Hash>(proc_size, matrix_sizes.clone()));
-  group.data.push(against_matrices::<FoxOtto>(proc_size, matrix_sizes.clone()));
-  group.data.push(against_matrices::<Cannon>(proc_size, matrix_sizes.clone()));
-  group
-}
+static mut ITERATIONS : usize = 20;
 
 fn main() -> std::io::Result<()> {
-  let mut groups = Groups::new();
+  let cli = Cli::parse();
 
-  let proc_sizes = 2..11;
-  groups.data.push(against_processor_all(proc_sizes, 125));
-  
-  let proc_sizes = 2..11;
-  groups.data.push(against_processor_all(proc_sizes, 250));
+  unsafe {
+    ITERATIONS = cli.iter;
+  }
 
-  let proc_sizes = 2..11;
-  groups.data.push(against_processor_all(proc_sizes, 375));
-
-  let proc_sizes = 2..11;
-  groups.data.push(against_processor_all(proc_sizes, 500));
+  let group = match cli.command {
+    Command::Matrix { start, end, step, proc} => {
+      let matrix_sizes = (start..=end).step_by(step);
+      match cli.comm {
+        None => against_matrices_all(proc, matrix_sizes),
+        Some(comm) => {
+          let mut g = Group::new(format!("{} vs Matrix size", comm.display()));
+          match comm {
+            CliComm::Hash => {
+              g.data.push(against_matrices::<Hash>(proc, matrix_sizes));
+              g
+            },
+            CliComm::FoxOtto => {
+              g.data.push(against_matrices::<FoxOtto>(proc, matrix_sizes));
+              g
+            },
+            CliComm::Cannon => {
+              g.data.push(against_matrices::<Cannon>(proc, matrix_sizes));
+              g
+            }
+          }
+        }
+      }
+    },
+    Command::Processor { start, end, step, matrix} => {
+      let proc_sizes = (start..=end).step_by(step);
+      match cli.comm {
+        None => against_processor_all(proc_sizes, matrix),
+        Some(comm) => {
+          let mut g = Group::new(format!("{} vs Processor size", comm.display()));
+          match comm {
+            CliComm::Hash => {
+              g.data.push(against_processor::<Hash>(proc_sizes, matrix));
+              g
+            },
+            CliComm::FoxOtto => {
+              g.data.push(against_processor::<FoxOtto>(proc_sizes, matrix));
+              g
+            },
+            CliComm::Cannon => {
+              g.data.push(against_processor::<Cannon>(proc_sizes, matrix));
+              g
+            }
+          }
+        }
+      }
+    }
+  };
 
   // Convert the data to JSON format
-  let json_data = serde_json::to_string(&groups)?;
+  let json_data = serde_json::to_string(&group)?;
 
   // Write the JSON data to a file
-  let mut file = File::create("data.json")?;
+  let mut file = File::create(cli.output)?;
   file.write_all(json_data.as_bytes())?;
 
   println!("Data has been written to data.json");
