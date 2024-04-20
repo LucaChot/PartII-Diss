@@ -1,6 +1,6 @@
 use sim::types::{Msg, Matrix};
 
-use crate::adj_matrix::A;
+use crate::adj_matrix::Store;
 
 #[test]
 fn store_load(){
@@ -16,7 +16,7 @@ fn store_load(){
     vec![3,2,1],
   ];
 
-  let matrix_m = Msg::zip(&matrix_a, &matrix_b);
+  //let matrix_m = Msg::zip(&matrix_a, &matrix_b);
   //let _ = matrix_m.store("test");
 
   let mut matrix_ml : Matrix<Msg> = Vec::new();

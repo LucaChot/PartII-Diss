@@ -3,13 +3,14 @@ use std::io::{self, Write, Read};
 
 use sim::types::{Matrix, Msg};
 
-pub trait A : Sized {
+pub trait Store : Sized {
    fn store(&self,  output_file_path : &str) -> io::Result<()> ;
    fn load(&mut self, input_file_path : &str) -> io::Result<()>;
+   fn num_nodes(&self) -> usize;
 }
 
 
-impl A for Matrix<Msg> {
+impl Store for Matrix<Msg> {
   fn store(&self,  output_file_path : &str) -> io::Result<()> {
     let mut file = File::create(output_file_path)?;
     let serialized = bincode::serialize(self).unwrap();
@@ -31,6 +32,10 @@ impl A for Matrix<Msg> {
         Err(io::Error::new(io::ErrorKind::InvalidData, err_msg))
       }
     }
+  }
+
+  fn num_nodes(&self) -> usize {
+      self.len()
   }
 }
 

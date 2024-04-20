@@ -58,16 +58,23 @@ impl Msg {
 
 impl Sendable for Msg {}
 impl Multiplicable for Msg {
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> {
-    (0..rows).map(|_| (0..cols).map(|i| Msg{ w : -1.0, p : i }).collect()).collect()
+  fn initial_c (a : &Matrix<Self>, _ : &Matrix<Self>) -> Matrix<Self> {
+    a.clone()
   }
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self {
+  fn singleton_matrix(a : Self, b : Self, c : Self) -> Self {
     let mut temp = c;
-    if a.w >= 0.0 && b.w >= 0.0  && ( temp.w < 0.0 || a.w + b.w < temp.w ){
+    if a.w > 0.0 && b.w > 0.0  && ( temp.w < 0.0 || a.w + b.w < temp.w ){
       temp.w = a.w + b.w;
       temp.p = b.p;
     }
     temp
+  }
+
+  fn neutral_matrix (rows : usize, cols : usize) -> Matrix<Self> {
+    (0..rows).map(|j| (0..cols).map(|i| Msg{ 
+      w : if i == j {0.0} else {-1.0}, 
+      p : i 
+    }).collect()).collect()
   }
 }
 
@@ -75,31 +82,40 @@ impl Sendable for () {}
 
 impl Sendable for isize {}
 impl Multiplicable for isize {
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> {
-    (0..rows).map(|_| (0..cols).map(|_| 0).collect()).collect()
+  fn initial_c (a : &Matrix<Self>, b : &Matrix<Self>) -> Matrix<Self> {
+    a.iter().map(|_| b[0].iter().map(|_| 0).collect()).collect()
   }
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self {
+  fn singleton_matrix(a : Self, b : Self, c : Self) -> Self {
     c + a * b
+  }
+  fn neutral_matrix (rows : usize, cols : usize) -> Matrix<Self> {
+    (0..rows).map(|_| (0..cols).map(|_| 0).collect()).collect()
   }
 }
 
 impl Sendable for usize {}
 impl Multiplicable for usize {
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> {
-    (0..rows).map(|_| (0..cols).map(|_| 0).collect()).collect()
+  fn initial_c (a : &Matrix<Self>, b : &Matrix<Self>) -> Matrix<Self> {
+    a.iter().map(|_| b[0].iter().map(|_| 0).collect()).collect()
   }
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self {
+  fn singleton_matrix(a : Self, b : Self, c : Self) -> Self {
     c + a * b
+  }
+  fn neutral_matrix (rows : usize, cols : usize) -> Matrix<Self> {
+    (0..rows).map(|_| (0..cols).map(|_| 0).collect()).collect()
   }
 }
 
 impl Sendable for f64 {}
 impl Multiplicable for f64 {
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> {
-    (0..rows).map(|_| (0..cols).map(|_| 0.0).collect()).collect()
+  fn initial_c (a : &Matrix<Self>, b : &Matrix<Self>) -> Matrix<Self> {
+    a.iter().map(|_| b[0].iter().map(|_| 0.0).collect()).collect()
   }
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self {
+  fn singleton_matrix(a : Self, b : Self, c : Self) -> Self {
     c + a * b
+  }
+  fn neutral_matrix (rows : usize, cols : usize) -> Matrix<Self> {
+    (0..rows).map(|_| (0..cols).map(|_| 0.0).collect()).collect()
   }
 }
 

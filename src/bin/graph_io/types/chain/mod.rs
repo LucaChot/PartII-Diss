@@ -94,3 +94,15 @@ pub fn store_chains(chains : &Vec<Chain>, output_file_path : &str) -> io::Result
   Ok(())
 }
 
+pub fn load_chain(chain_id : usize, mut file : &mut File) -> Chain {
+  let offset_offset = (chain_id * std::mem::size_of::<u64>()) as u64;
+
+  let _ = file.seek(io::SeekFrom::Start(offset_offset));
+  let offset : u64 = bincode::deserialize_from(&mut file).unwrap();
+
+  let _ = file.seek(io::SeekFrom::Start(offset));
+  bincode::deserialize_from(&mut file).unwrap()
+}
+
+#[cfg(test)]
+mod tests;

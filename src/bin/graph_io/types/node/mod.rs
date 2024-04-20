@@ -60,6 +60,34 @@ pub fn store_states(nodes : &Vec<&ReducedState>, output_file_path : &str) -> io:
   Ok(())
 }
 
+pub fn load_state(chain_id : usize, mut file : &mut File) -> ReducedState {
+  let offset_offset = (chain_id * std::mem::size_of::<u64>()) as u64;
+
+  let _ = file.seek(io::SeekFrom::Start(offset_offset));
+  let offset : u64 = bincode::deserialize_from(&mut file).unwrap();
+
+  let _ = file.seek(io::SeekFrom::Start(offset));
+  bincode::deserialize_from(&mut file).unwrap()
+}
+
+pub fn reduced_mapping(mut file : &mut File, num_nodes : usize,  num_ingraph : usize) -> Vec<usize> {
+  let start = (num_nodes * std::mem::size_of::<u64>()) as u64;
+
+  let mut mapping = Vec::with_capacity(num_ingraph);
+  mapping.extend(0..num_ingraph);
+
+  let _ = file.seek(io::SeekFrom::Start(start));
+  for node_id in 0..num_nodes {
+    let state : ReducedState = bincode::deserialize_from(&mut file).unwrap();
+    match state {
+      ReducedState::INGRAPH(ingraph) => mapping[ingraph.reduced_id] = node_id,
+      _ => ()
+    }
+  }
+  
+  mapping
+}
+
 #[derive(Debug)]
 pub struct Node{
   pub rc_edge : Vec<Rc<Edge>>,
@@ -86,3 +114,6 @@ impl Node {
     nodes.iter().map(|node| &node.reduced_state).collect::<Vec<_>>()
   }
 }
+
+#[cfg(test)]
+mod tests;

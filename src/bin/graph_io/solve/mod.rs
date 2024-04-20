@@ -1,6 +1,6 @@
 use std::{fs::File, io::{self, Seek}, ops::Add};
 use sim::types::{Matrix, Msg};
-use crate::types::chain::Chain;
+use crate::types::{chain::{Chain, load_chain}, node::reduced_mapping};
 use crate::types::node::ReducedState;
 
 trait Intersect<T> {
@@ -36,6 +36,7 @@ impl<T : Copy + Ord> Intersect<T> for Vec<T> {
 }
 
 
+#[derive(Debug)]
 pub struct Path {
   distance : f64,
   nodes : Vec<usize>
@@ -75,15 +76,18 @@ pub struct Solver {
   adj_matrix : Matrix<Msg>,
   nodes : File,
   chains : File,
+  reduced_mapping : Vec<usize>,
 }
 
 impl Solver {
-  pub fn new(adj_matrix : Matrix<Msg>, nodes_file : &str, chains_file : &str)
+  pub fn new(adj_matrix : Matrix<Msg>, nodes_file : &str, chains_file : &str, num_nodes : usize)
     -> io::Result<Self> {
-    let nodes = File::open(nodes_file)?;
+    let mut nodes = File::open(nodes_file)?;
     let chains = File::open(chains_file)?;
 
-    Ok(Solver { adj_matrix, nodes, chains })
+    let reduced_mapping = reduced_mapping(&mut nodes, num_nodes, adj_matrix.len());
+
+    Ok(Solver { adj_matrix, nodes, chains, reduced_mapping })
     }
 }
 
@@ -100,13 +104,7 @@ impl Solver {
   }
 
   fn get_chain(&mut self, chain_id : usize) -> Chain {
-    let offset_offset = (chain_id * std::mem::size_of::<u64>()) as u64;
-
-    let _ = self.chains.seek(io::SeekFrom::Start(offset_offset));
-    let offset : u64 = bincode::deserialize_from(&mut self.chains).unwrap();
-
-    let _ = self.chains.seek(io::SeekFrom::Start(offset));
-    bincode::deserialize_from(&mut self.chains).unwrap()
+    load_chain(chain_id, &mut self.chains)
   }
 
   fn path_along_edge(&mut self, node_a : usize, node_b : usize) -> Path {
@@ -118,7 +116,7 @@ impl Solver {
         let distance = self.adj_matrix[adj_a.reduced_id][adj_b.reduced_id].get_w();
         match adj_a.chains.intersect(&mut adj_b.chains) {
           None => 
-            Path::new(distance, vec![adj_a.reduced_id, adj_b.reduced_id]),
+            Path::new(distance, vec![node_a, node_b]),
           Some(chain_id) => {
             let chain = self.get_chain(chain_id);
             Path::new(distance, chain.get_path(node_a, node_b))
@@ -145,7 +143,7 @@ impl Solver {
           Path::new(-1.0, Vec::new())
         } else {
           let distance  = if inchain_a.dist_a >=  inchain_b.dist_a {
-            inchain_a.dist_a - inchain_a.dist_a
+            inchain_a.dist_a - inchain_b.dist_a
           } else {
             inchain_b.dist_a - inchain_a.dist_a
           };
@@ -157,19 +155,23 @@ impl Solver {
   }
 
 
-  fn find_path(&mut self, node_a : usize, node_b : usize) -> Path {
+  pub fn find_path(&mut self, node_a : usize, node_b : usize) -> Path {
     let state_a = self.get_state(node_a);
     let state_b = self.get_state(node_b);
+    dbg!(&state_a);
 
     match (state_a, state_b) {
       (ReducedState::INGRAPH(adj_a), ReducedState::INGRAPH(adj_b)) => {
+        dbg!("Reached");
         let mut path = Path::new(0.0, Vec::new());
         let mut last = adj_b.reduced_id;
-        let mut previous = self.adj_matrix[adj_a.reduced_id][adj_b.reduced_id].get_p();
+        let mut previous = self.adj_matrix[adj_a.reduced_id][last].get_p();
         while previous != last {
-          path = &self.path_along_edge(previous, last) + &path;
+          path = &self.path_along_edge(self.reduced_mapping[previous], self.reduced_mapping[last])
+            + &path;
+          dbg!(&path);
           last = previous;
-          previous = self.adj_matrix[adj_a.reduced_id][adj_b.reduced_id].get_p();
+          previous = self.adj_matrix[adj_a.reduced_id][last].get_p();
         }
         path
       },
@@ -221,3 +223,6 @@ impl Solver {
     }
   }
 }
+
+#[cfg(test)]
+mod tests;

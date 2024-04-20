@@ -1,6 +1,8 @@
+use std::io;
 use std::rc::Rc;
 use std::cmp::Ordering::*;
-use crate::types::edge::{Edge, edge_file_to_vec, store_edges};
+use crate::adj_matrix::Store;
+use crate::types::edge::Edge;
 use crate::types::node::{Node, ReducedState, ChainState, GraphState, store_states};
 use crate::types::chain::{Chain, store_chains};
 
@@ -16,7 +18,7 @@ fn create_node_vec(edges : &Vec<Rc<Edge>>, num_nodes : usize) -> Vec<Node> {
   nodes
 }
 
-fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize){
+fn visit_node (nodes : &Vec<Node>){
   let mut stack : Vec<(usize, Option<Rc<Edge>>)> = Vec::new();
   stack.push((0,None));
   let mut order = 0;
@@ -24,24 +26,26 @@ fn visit_node (nodes : &Vec<Node>, node_index : usize, mut order : usize){
     let curr_node = match stack.pop().unwrap() {
       (node_id, None) => node_id,
       (node_id, Some(edge)) => {
-        let mut rf_visited = (*edge).visited.borrow_mut();
-        *rf_visited = true;
-        let mut rf_order = (*edge).order.borrow_mut();
-        *rf_order = order;
-        order += 1;
+        let mut edge_visited = (*edge).visited.borrow_mut();
+        if !*edge_visited {
+          *edge_visited = true;
+          let mut rf_order = (*edge).order.borrow_mut();
+          *rf_order = order;
+          order += 1;
+        }
         node_id
       }
     };
-    let mut rf_visited = nodes[curr_node].visited.borrow_mut();
-    if *rf_visited {
+    let mut node_visited = nodes[curr_node].visited.borrow_mut();
+    if *node_visited {
       continue;
     }
-    *rf_visited = true;
+    *node_visited = true;
 
-    for edge in nodes[curr_node].rc_edge.iter() {
+    for edge in nodes[curr_node].rc_edge.iter().rev() {
       { 
-        let rf_visited = (*edge).visited.borrow_mut();
-        if *rf_visited == true {
+        let edge_visited = (*edge).visited.borrow_mut();
+        if *edge_visited == true {
           continue;
         }
         let next_node = if curr_node == (*edge).node_a {
@@ -236,39 +240,47 @@ fn updated_reduced_edges(edges : &Vec<Rc<Edge>>, nodes : &mut Vec<Node>) -> Vec<
 }
 
 fn remove_val_2_nodes (input_file : &str) -> (Vec<Rc<Edge>>, Vec<Chain>) {
-  let (mut edges, num_nodes) = edge_file_to_vec(input_file);
+  let mut edges : Vec<Rc<Edge>>= Vec::new();
+  let _ = edges.load(input_file);
+
+  let num_nodes = edges.num_nodes();
+
   let nodes = create_node_vec(&edges, num_nodes);
   
-  visit_node(&nodes, 0, 0);
+  visit_node(&nodes);
   sort_edges_by_order(&mut edges);
-  dbg!(&edges);
 
   remove_edges(edges, &nodes)
 }
 
 
-pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes : &str, output_chains : &str) {
-  let (mut edges, num_nodes) = edge_file_to_vec(input_file);
+pub fn complete_reduction(input_file : &str, output_edges : &str, output_nodes : &str, output_chains : &str) 
+-> io::Result<()>{
+  let mut edges : Vec<Rc<Edge>>= Vec::new();
+  edges.load(input_file)?;
+
+
+  let num_nodes = edges.num_nodes();
   let mut nodes = create_node_vec(&edges, num_nodes);
   
-  println!("Reached here");
-  visit_node(&nodes, 0, 0);
+  visit_node(&nodes);
   sort_edges_by_order(&mut edges);
-  dbg!(&edges);
 
   let (mut reduced_edges, chains) = remove_edges(edges, &nodes);
   update_chain_nodes(&chains, &mut nodes);
   update_remain_nodes(&mut nodes);
 
   let reduced_nodes = Node::get_reduced(&nodes);
-  let _ = store_states(&reduced_nodes, output_nodes);
-  let _ = store_chains(&chains, output_chains);
+  store_states(&reduced_nodes, output_nodes)?;
+  dbg!("Reached here");
+  store_chains(&chains, output_chains)?;
 
   sort_edges_by_nodes(&mut reduced_edges);
   //let deduplicated = remove_duplicate_edges(reduced_edges);
   let updated = updated_reduced_edges(&reduced_edges, &mut nodes);
 
-  store_edges(updated, output_edges)
+  updated.store(output_edges)?;
+  Ok(())
 }
 
 #[cfg(test)]

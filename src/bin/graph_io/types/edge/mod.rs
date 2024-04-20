@@ -6,6 +6,11 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use sim::matmul::Multiplicable;
+use sim::types::{Matrix, Msg};
+
+use crate::adj_matrix::Store;
+
 #[derive(Debug)]
 pub struct Edge {
     pub node_a : usize,
@@ -116,40 +121,68 @@ fn parse_string(values : &str) -> Result<(usize, usize, f64), ParseError> {
     Ok((first_usize, second_usize, float_value))
 }
 
-pub fn edge_file_to_vec(input_file_name : &str) -> (Vec<Rc<Edge>>, usize) {
-  let input_file = File::open(input_file_name).unwrap();
-  let input_reader = io::BufReader::new(input_file);
-  let mut edges : Vec<Rc<Edge>> = Vec::new();
-  let mut num_nodes = 0;
-  // Iterate over the lines in the file
-  for line in input_reader.lines() {
-      // Handle each line
-      match line {
-          Ok(content) => {
-            match parse_string(&content) {
-              Ok((start_node, end_node, distance)) =>  {
-                if end_node >= num_nodes {
-                  num_nodes = end_node + 1;
+impl Store for Vec<Rc<Edge>> {
+  fn store(&self,  output_file_path : &str) -> io::Result<()> {
+    let formatted_strings : Vec<String> = self.iter().enumerate()
+      .map(|(id, edge)| format!("{} {} {} {}", id, edge.node_a, edge.node_b, edge.distance))
+      .collect();
+
+    let mut file = File::create(output_file_path)?;
+    for line in formatted_strings{
+      writeln!(file, "{}", line)?;
+    }
+    Ok(())
+  }
+
+  fn load(&mut self, input_file_path : &str) -> io::Result<()> {
+    let input_file = File::open(input_file_path)?;
+    let input_reader = io::BufReader::new(input_file);
+    // Iterate over the lines in the file
+    for line in input_reader.lines() {
+        // Handle each line
+        match line {
+            Ok(content) => {
+              match parse_string(&content) {
+                Ok((start_node, end_node, distance)) =>  {
+                  self.push(Rc::new(Edge::new(start_node, end_node, distance)))
                 }
-                edges.push(Rc::new(Edge::new(start_node, end_node, distance)))
+                ,
+                Err(err) => eprintln!("Error reading line: {}", err),
               }
-              ,
-              Err(err) => eprintln!("Error reading line: {}", err),
             }
-          }
-          Err(err) => eprintln!("Error reading line: {}", err),
-      }
+            Err(err) => eprintln!("Error reading line: {}", err),
+        }
+    }
+    Ok(())
   }
-  (edges, num_nodes)
+
+  fn num_nodes(&self) -> usize {
+    let num = self.iter()
+      .map(|edge| if edge.node_a > edge.node_b { edge.node_a } else { edge.node_b })
+      .max();
+    match num {
+      None => 0,
+      Some(num_nodes) => num_nodes + 1
+    }
+  }
 }
 
-pub fn store_edges(edges : Vec<Rc<Edge>>, output_file_path : &str)  {
-  let formatted_strings : Vec<String> = edges.into_iter().enumerate()
-    .map(|(id, edge)| format!("{} {} {} {}", id, edge.node_a, edge.node_b, edge.distance))
-    .collect();
+pub trait ToAdj {
+  fn into_adj(&self) -> Matrix<Msg>;
+}
 
-  let mut file = File::create(output_file_path).unwrap();
-  for line in formatted_strings{
-    writeln!(file, "{}", line).unwrap();
+impl ToAdj for Vec<Rc<Edge>> {
+  fn into_adj(&self) -> Matrix<Msg> {
+    let num_nodes = self.num_nodes();
+    let mut adj = Msg::neutral_matrix(num_nodes, num_nodes);
+
+    for edge in self.iter() {
+      adj[edge.node_a][edge.node_b] = Msg::new(edge.distance, edge.node_a);
+      adj[edge.node_b][edge.node_a] = Msg::new(edge.distance, edge.node_b);
+    }
+    adj  
   }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,3 @@
-use crate::types::chain::Chain;
-
 use super::*;
 
 
@@ -38,7 +36,7 @@ fn test_connected_false(){
 
 #[test]
 fn test_removal_linear1(){
-  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear1.txt");
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/test_graphs/linear1.txt");
 
   assert_eq!(*edges[0], Edge::new(0,3,3.0));
 
@@ -50,7 +48,7 @@ fn test_removal_linear1(){
 
 #[test]
 fn test_removal_linear2(){
-  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear2.txt");
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/test_graphs/linear2.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,2.0));
 
@@ -64,7 +62,7 @@ fn test_removal_linear2(){
 
 #[test]
 fn test_removal_linear3(){
-  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/linear3.txt");
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/test_graphs/linear3.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,3.0));
 
@@ -76,7 +74,7 @@ fn test_removal_linear3(){
 
 #[test]
 fn test_removal_cycle(){
-  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/cycle.txt");
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/test_graphs/cycle.txt");
 
   assert_eq!(*edges[0], Edge::new(0,2,2.0));
   assert_eq!(*edges[1], Edge::new(0,2,3.0));
@@ -98,7 +96,7 @@ fn test_removal_cycle(){
 
 #[test]
 fn test_removal_complex(){
-  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/reduce_graph/tests/graphs/complex.txt");
+  let (edges, chains) = remove_val_2_nodes("src/bin/graph_io/test_graphs/complex.txt");
 
   dbg!(&chains);
 
@@ -117,7 +115,9 @@ fn test_removal_complex(){
 
 #[test]
 fn test_remove_redundancy(){
-  let (mut edges, node_num) = edge_file_to_vec("src/bin/graph_io/reduce_graph/tests/graphs/redundant.txt");
+  let mut edges = Vec::new();
+  let _ = edges.load("src/bin/graph_io/test_graphs/redundant.txt");
+  let node_num = edges.num_nodes();
   let mut nodes = create_node_vec(&edges, node_num);
   sort_edges_by_nodes(&mut edges);
   dbg!(&edges);
