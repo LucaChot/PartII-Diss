@@ -17,10 +17,10 @@ fn store_load(){
   ];
 
   //let matrix_m = Msg::zip(&matrix_a, &matrix_b);
-  //let _ = matrix_m.store("test");
+  //let _ = matrix_m.store("src/bin/graph_io/adj_matrix/tests/test");
 
   let mut matrix_ml : Matrix<Msg> = Vec::new();
-  let _ = matrix_ml.load("test");
+  let _ = matrix_ml.load("src/bin/graph_io/adj_matrix/tests/test");
 
   let (matrix_al, matrix_bl) = Msg::unzip(&matrix_ml);
 

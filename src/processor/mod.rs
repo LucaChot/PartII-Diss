@@ -1,5 +1,5 @@
 use crate::broadcast::{Broadcast, Sendable, Direct, Channel};
-use std::{time::Duration, thread::{JoinHandle, self}};
+use std::{time::Duration, thread::{JoinHandle, self}, mem::{size_of, size_of_val}, ops::{Mul, Div}};
 
 pub mod debug;
 
@@ -27,6 +27,26 @@ impl<T : Sendable> CoreComm<T> {
   } 
 }
 
+#[derive(Clone,Copy)]
+struct CommInfo {
+  latency : Duration,
+  bandwidth  : usize,
+  startup : Duration,
+  broadcast_size : usize
+}
+
+impl CommInfo {
+  fn direct_time<T>(&self, item : &T) -> Duration {
+    self.latency + Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
+  }
+
+  fn broadcast_time<T>(&self, item : &T) -> Duration {
+    self.startup.mul(self.broadcast_size as u32)
+      + self.latency 
+      + Duration::new(0,(size_of_val(item) / self.bandwidth)as u32)
+  }
+}
+
 
 pub trait CoreInfo<T : Sendable> : Send {
   type ChannelOption;
@@ -52,23 +72,28 @@ pub struct TaurusCoreInfo<T : Sendable> {
   pub row : usize,
   pub col : usize,
   core_comm : CoreComm<T>,
+  comm_info : CommInfo
 } 
 
 impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
   type ChannelOption = Taurus;
 
   fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : &mut Option<&mut CoreDebugger>){
-    let elapsed =  match debugger {
-      Some(core_debugger) => Some(core_debugger.get_curr_elapsed()),
+    let comm_cost  = match  ch_option {
+      Taurus::ROW | Taurus::COL => self.comm_info.broadcast_time(&data),
+      _ => self.comm_info.direct_time(&data)
+    };
+    let recv_time =  match debugger {
+      Some(core_debugger) => Some(core_debugger.get_curr_elapsed() + comm_cost),
       None => None,
     };
     match ch_option {
-      Taurus::LEFT => self.core_comm.left.send((data,elapsed)),
-      Taurus::RIGHT => self.core_comm.right.send((data,elapsed)),
-      Taurus::UP => self.core_comm.up.send((data,elapsed)),
-      Taurus::DOWN => self.core_comm.down.send((data,elapsed)),
-      Taurus::ROW => self.core_comm.row.send((data,elapsed)),
-      Taurus::COL => self.core_comm.col.send((data,elapsed)),
+      Taurus::LEFT => self.core_comm.left.send((data,recv_time)),
+      Taurus::RIGHT => self.core_comm.right.send((data,recv_time)),
+      Taurus::UP => self.core_comm.up.send((data,recv_time)),
+      Taurus::DOWN => self.core_comm.down.send((data,recv_time)),
+      Taurus::ROW => self.core_comm.row.send((data,recv_time)),
+      Taurus::COL => self.core_comm.col.send((data,recv_time)),
     }
    match debugger {
       Some(core_debugger) => {
@@ -123,10 +148,20 @@ pub trait NetworkBuilder<T:Sendable> {
   fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType>;
 }
 
-pub struct TaurusNetworkBuilder {}
+pub struct TaurusNetworkBuilder {
+  latency : Duration,
+  bandwidth : usize,
+  startup : Duration,
+}
 
 impl TaurusNetworkBuilder{
-  pub fn new() -> Self { TaurusNetworkBuilder {  }}
+  pub fn new(latency : Duration,bandwidth  : usize,startup : Duration)
+    -> Self { 
+      TaurusNetworkBuilder {
+        latency,
+        bandwidth,
+        startup,
+    }}
 }
 
 impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
@@ -137,7 +172,13 @@ impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
       let mut cores : Vec<TaurusCoreInfo<T>> = Vec::with_capacity(num_cores);
       for row in 0..rows {
         for col in 0..cols {
-          cores.push(TaurusCoreInfo{ row, col, core_comm : CoreComm::new() })
+          cores.push(TaurusCoreInfo{ row, col, 
+            core_comm : CoreComm::new(), 
+            comm_info : CommInfo { latency: self.latency,
+                                   bandwidth : self.bandwidth,
+                                   startup : self.startup,
+                                   broadcast_size: rows }
+          })
         }
       }
 

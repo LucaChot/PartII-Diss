@@ -1,4 +1,4 @@
-use std::any::type_name;
+use std::{any::type_name, time::Duration};
 
 use sim::{matmul::{MatMul, comm_method::{Hash, CommMethod, FoxOtto, Cannon}}, types::Matrix};
 use sim::processor::{Processor, TaurusNetworkBuilder, TaurusCoreInfo};
@@ -19,7 +19,8 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
     for _ in 0..iter {
       let a = vec![vec![0; matrix_size]; matrix_size];
       let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let mut processor = Processor::new(processor_size, processor_size, Box::new(TaurusNetworkBuilder::new()));
+      let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
+      let mut processor = Processor::new(2,2, Box::new(network_builder));
       let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
       matmul.parallel_square::<T>(a,iterations);
       match processor.max_debug_time() {
@@ -54,7 +55,8 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
     for _ in 0..iter {
       let a = vec![vec![0; matrix_size]; matrix_size];
       let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let mut processor = Processor::new(proc_size, proc_size, Box::new(TaurusNetworkBuilder::new()));
+      let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
+      let mut processor = Processor::new(2,2, Box::new(network_builder));
       let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
       matmul.parallel_square::<T>(a,iterations);
       match processor.max_debug_time() {
