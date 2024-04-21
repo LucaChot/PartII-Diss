@@ -4,7 +4,7 @@ use std::{thread::sleep, time::Instant};
 
 #[test]
 fn general_correct_length(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let bchannels = processor.build_network();
@@ -13,7 +13,7 @@ fn general_correct_length(){
 
 #[test]
 fn general_correct_connection(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
@@ -46,7 +46,7 @@ fn general_correct_connection(){
 
 #[test]
 fn general_correct_broadcast(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
@@ -334,7 +334,7 @@ fn get_submatrices_square_diff(){
 
 #[test]
 fn test_core_debug_time_progresses(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
@@ -370,7 +370,7 @@ fn test_core_debug_time_progresses(){
 
 #[test]
 fn test_core_debug_time_handles_sleep(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::new(2,0), 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(2000000000,0,0);
   let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
@@ -404,7 +404,7 @@ fn test_core_debug_time_handles_sleep(){
 
 #[test]
 fn test_core_debug_time_received_is_less(){
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1000000000, 0);
   let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
@@ -439,4 +439,130 @@ fn test_core_debug_time_received_is_less(){
   assert!(processor.debugs[1].elapsed.as_millis() < 10);
   assert!(processor.debugs[0].elapsed.as_millis() > 450);
   assert!(processor.debugs[0].elapsed.as_millis() < 550);
+}
+
+#[test]
+fn test_comm_info_bandwidth_2ms(){
+  let network_builder = TaurusNetworkBuilder::new(0, 2, 0);
+  let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(network_builder));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 1900);
+  assert!(processor.debugs[0].elapsed.as_millis() < 2100);
+}
+
+#[test]
+fn test_comm_info_latency(){
+  let network_builder = TaurusNetworkBuilder::new(200000000, 2, 0);
+  let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(network_builder));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 2100);
+  assert!(processor.debugs[0].elapsed.as_millis() < 2300);
+}
+
+#[test]
+fn test_comm_info_startup_2cores(){
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 500000000);
+  let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(network_builder));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::ROW,1, &mut Some(debugger));
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::ROW, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 4900);
+  assert!(processor.debugs[0].elapsed.as_millis() < 5100);
+}
+
+#[test]
+fn test_comm_info_startup_3cores(){
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 500000000);
+  let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(3,3, Box::new(network_builder));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::ROW,1, &mut Some(debugger));
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::ROW, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 5400);
+  assert!(processor.debugs[0].elapsed.as_millis() < 5600);
 }

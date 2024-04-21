@@ -1,5 +1,5 @@
 use crate::broadcast::{Broadcast, Sendable, Direct, Channel};
-use std::{time::Duration, thread::{JoinHandle, self}, mem::{size_of, size_of_val}, ops::{Mul, Div}};
+use std::{time::Duration, thread::{JoinHandle, self}, mem::size_of_val, ops::{Mul, Div}};
 
 pub mod debug;
 
@@ -43,7 +43,7 @@ impl CommInfo {
   fn broadcast_time<T>(&self, item : &T) -> Duration {
     self.startup.mul(self.broadcast_size as u32)
       + self.latency 
-      + Duration::new(0,(size_of_val(item) / self.bandwidth)as u32)
+      + Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
   }
 }
 
@@ -148,6 +148,7 @@ pub trait NetworkBuilder<T:Sendable> {
   fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType>;
 }
 
+#[derive(Clone,Copy)]
 pub struct TaurusNetworkBuilder {
   latency : Duration,
   bandwidth : usize,
@@ -155,12 +156,12 @@ pub struct TaurusNetworkBuilder {
 }
 
 impl TaurusNetworkBuilder{
-  pub fn new(latency : Duration,bandwidth  : usize,startup : Duration)
+  pub fn new(latency : usize, bandwidth  : usize, startup : usize)
     -> Self { 
       TaurusNetworkBuilder {
-        latency,
-        bandwidth,
-        startup,
+        latency : if latency != 0 {Duration::new(0,latency as u32)} else {Duration::ZERO},
+        bandwidth : if bandwidth == 0 {1} else {bandwidth},
+        startup : if startup != 0 {Duration::new(0,startup as u32)} else {Duration::ZERO},
     }}
 }
 

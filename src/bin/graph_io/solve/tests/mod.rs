@@ -189,7 +189,7 @@ fn test_solve_complex(){
 
   let iterations = f64::ceil(f64::log2(adj.len() as f64)) as usize;
   dbg!(&iterations);
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1000000000, 0);
   let mut processor = Processor::new(2,2, Box::new(network_builder));
   let mut matmul : MatMul<Msg> = MatMul::new(&mut processor);
   let c = matmul.parallel_square::<Hash>(adj,iterations);

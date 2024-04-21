@@ -1,4 +1,4 @@
-use std::{any::type_name, time::Duration};
+use std::any::type_name;
 
 use sim::{matmul::{MatMul, comm_method::{Hash, CommMethod, FoxOtto, Cannon}}, types::Matrix};
 use sim::processor::{Processor, TaurusNetworkBuilder, TaurusCoreInfo};
@@ -6,7 +6,9 @@ use crate::bench::{Run, Bench, Group};
 use crate::ITERATIONS;
 
 
-pub fn against_processor<T>(proc_sizes : impl Iterator<Item = usize>, matrix_size : usize) -> Bench
+pub fn against_processor<T>(proc_sizes : impl Iterator<Item = usize>,
+                            matrix_size : usize,
+                            network_builder : TaurusNetworkBuilder) -> Bench
 where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   let mut bench = Bench::new(format!("{} vs Processor", type_name::<T>()));
   println!("Running {bench}");
@@ -19,7 +21,6 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
     for _ in 0..iter {
       let a = vec![vec![0; matrix_size]; matrix_size];
       let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
       let mut processor = Processor::new(2,2, Box::new(network_builder));
       let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
       matmul.parallel_square::<T>(a,iterations);
@@ -33,16 +34,20 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   bench
 }
 
-pub fn against_processor_all(proc_sizes : impl Iterator<Item = usize> + Clone, matrix_size : usize) -> Group {
+pub fn against_processor_all(proc_sizes : impl Iterator<Item = usize> + Clone
+                             , matrix_size : usize,
+                             network_builder : TaurusNetworkBuilder) -> Group {
   let mut group = Group::new(format!("All vs Processor"));
   println!("Running {group}");
-  group.data.push(against_processor::<Hash>(proc_sizes.clone(), matrix_size));
-  group.data.push(against_processor::<FoxOtto>(proc_sizes.clone(), matrix_size));
-  group.data.push(against_processor::<Cannon>(proc_sizes.clone(), matrix_size));
+  group.data.push(against_processor::<Hash>(proc_sizes.clone(), matrix_size, network_builder));
+  group.data.push(against_processor::<FoxOtto>(proc_sizes.clone(), matrix_size, network_builder));
+  group.data.push(against_processor::<Cannon>(proc_sizes.clone(), matrix_size, network_builder));
   group
 }
 
-pub fn against_matrices<T>(proc_size : usize, matrix_sizes : impl Iterator<Item = usize>) -> Bench
+pub fn against_matrices<T>(proc_size : usize,
+                           matrix_sizes : impl Iterator<Item = usize>
+                           , network_builder : TaurusNetworkBuilder) -> Bench
 where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   let mut bench = Bench::new(format!("{} vs Matrices", type_name::<T>()));
   println!("Running {bench}");
@@ -55,7 +60,6 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
     for _ in 0..iter {
       let a = vec![vec![0; matrix_size]; matrix_size];
       let iterations = f64::ceil(f64::log2(a.len() as f64)) as usize;
-      let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1000000000, Duration::ZERO);
       let mut processor = Processor::new(2,2, Box::new(network_builder));
       let mut matmul : MatMul<isize> = MatMul::new(&mut processor);
       matmul.parallel_square::<T>(a,iterations);
@@ -69,11 +73,13 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   bench
 }
 
-pub fn against_matrices_all(proc_size : usize, matrix_sizes : impl Iterator<Item=usize> + Clone) -> Group {
+pub fn against_matrices_all(proc_size : usize, 
+                            matrix_sizes : impl Iterator<Item=usize> + Clone,
+                            network_builder : TaurusNetworkBuilder) -> Group {
   let mut group = Group::new(format!("All vs Matrices"));
   println!("Running {group}");
-  group.data.push(against_matrices::<Hash>(proc_size, matrix_sizes.clone()));
-  group.data.push(against_matrices::<FoxOtto>(proc_size, matrix_sizes.clone()));
-  group.data.push(against_matrices::<Cannon>(proc_size, matrix_sizes.clone()));
+  group.data.push(against_matrices::<Hash>(proc_size, matrix_sizes.clone(), network_builder));
+  group.data.push(against_matrices::<FoxOtto>(proc_size, matrix_sizes.clone(),network_builder));
+  group.data.push(against_matrices::<Cannon>(proc_size, matrix_sizes.clone(),network_builder));
   group
 }

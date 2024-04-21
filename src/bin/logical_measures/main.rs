@@ -1,5 +1,5 @@
 use clap_derive::ValueEnum;
-use sim::matmul::comm_method::{Hash, FoxOtto, Cannon};
+use sim::{matmul::comm_method::{Hash, FoxOtto, Cannon}, processor::TaurusNetworkBuilder};
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -21,9 +21,21 @@ pub struct Cli {
     /// Specify a communication method
     #[arg(value_enum)]
     comm: Option<CliComm>,
+
+    /// Latency of core in ns
+    #[arg(short, long, default_value_t = 100)]
+    latency : usize,
+
+    /// Bandwidth of core in B/ns
+    #[arg(short, long, default_value_t = 100000000)]
+    bandwidth : usize,
+
+    /// Startup of broadcast
+    #[arg(short, long, default_value_t = 1)]
+    startup : usize,
     
     /// File to write json to
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("data.json"))]
     output: String,
 
     /// Number of iterations per run
@@ -96,24 +108,25 @@ fn main() -> std::io::Result<()> {
     ITERATIONS = cli.iter;
   }
 
+  let network_builder = TaurusNetworkBuilder::new(cli.latency, cli.bandwidth, cli.startup);
   let group = match cli.command {
     Command::Matrix { start, end, step, proc} => {
       let matrix_sizes = (start..=end).step_by(step);
       match cli.comm {
-        None => against_matrices_all(proc, matrix_sizes),
+        None => against_matrices_all(proc, matrix_sizes, network_builder),
         Some(comm) => {
           let mut g = Group::new(format!("{} vs Matrix size", comm.display()));
           match comm {
             CliComm::Hash => {
-              g.data.push(against_matrices::<Hash>(proc, matrix_sizes));
+              g.data.push(against_matrices::<Hash>(proc, matrix_sizes,network_builder));
               g
             },
             CliComm::FoxOtto => {
-              g.data.push(against_matrices::<FoxOtto>(proc, matrix_sizes));
+              g.data.push(against_matrices::<FoxOtto>(proc, matrix_sizes,network_builder));
               g
             },
             CliComm::Cannon => {
-              g.data.push(against_matrices::<Cannon>(proc, matrix_sizes));
+              g.data.push(against_matrices::<Cannon>(proc, matrix_sizes,network_builder));
               g
             }
           }
@@ -121,22 +134,22 @@ fn main() -> std::io::Result<()> {
       }
     },
     Command::Processor { start, end, step, matrix} => {
-      let proc_sizes = (start..=end).step_by(step);
+      let proc_sizes = (start..=end).step_by(step).map(|x| 2_i32.pow(x as u32) as usize);
       match cli.comm {
-        None => against_processor_all(proc_sizes, matrix),
+        None => against_processor_all(proc_sizes, matrix, network_builder),
         Some(comm) => {
           let mut g = Group::new(format!("{} vs Processor size", comm.display()));
           match comm {
             CliComm::Hash => {
-              g.data.push(against_processor::<Hash>(proc_sizes, matrix));
+              g.data.push(against_processor::<Hash>(proc_sizes, matrix, network_builder));
               g
             },
             CliComm::FoxOtto => {
-              g.data.push(against_processor::<FoxOtto>(proc_sizes, matrix));
+              g.data.push(against_processor::<FoxOtto>(proc_sizes, matrix, network_builder));
               g
             },
             CliComm::Cannon => {
-              g.data.push(against_processor::<Cannon>(proc_sizes, matrix));
+              g.data.push(against_processor::<Cannon>(proc_sizes, matrix, network_builder));
               g
             }
           }

@@ -7,7 +7,7 @@ use crate::types::{Matrix, Msg};
 #[test]
 #[ignore]
 fn test_hash_matrix_mult_api() {
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor = Processor::new(2,2, Box::new(network_builder));
   let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
@@ -36,7 +36,7 @@ fn test_hash_matrix_mult_api() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult() {
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor = Processor::new(2,2, Box::new(network_builder));
   let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
@@ -65,7 +65,7 @@ fn test_fox_otto_matrix_mult() {
 #[test]
 #[ignore]
 fn test_cannon_matrix_mult() {
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor = Processor::new(2,2, Box::new(network_builder));
   let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
@@ -94,7 +94,7 @@ fn test_cannon_matrix_mult() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult_with_reduction() {
-  let network_builder = TaurusNetworkBuilder::new(Duration::ZERO, 1, Duration::ZERO);
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
   let mut processor = Processor::new(3,3, Box::new(network_builder));
   let mut p : MatMul<Msg> = MatMul::new(&mut processor);
   
