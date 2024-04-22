@@ -1,5 +1,6 @@
 use super::*;
-use std::thread::sleep;
+use std::{thread::sleep, time::Instant};
+
 
 #[test]
 fn general_correct_length(){
@@ -330,51 +331,104 @@ fn get_submatrices_square_diff(){
 
 #[test]
 fn test_core_debug_time_progresses(){
-  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+  let mut processor : Processor<(),i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
   let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   
-  dbg!(cores[2].core_debug.get_curr_elapsed());
-  cores[0].send(Taurus::UP,1);
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    let t = Instant::now();
+    while t.elapsed() < Duration::new(0,500000000) {
+      continue
+    }
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
+  };
 
-  sleep(Duration::new(2, 0));
-  assert_eq!(cores[2].recv(Taurus::DOWN), 1);
-  assert!(cores[2].core_debug.get_curr_elapsed().as_millis() >=  2000);
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 400);
+  assert!(processor.debugs[1].elapsed.as_millis() > 400);
+}
+
+#[test]
+fn test_core_debug_time_handles_sleep(){
+  let mut processor : Processor<(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    sleep(Duration::new(2, 0));
+
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() < 10);
+  assert!(processor.debugs[1].elapsed.as_millis() < 10);
 }
 
 #[test]
 fn test_core_debug_time_received_is_less(){
-  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
+  let mut processor : Processor<(),i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
   let mut cores = processor.build_network();
   // Check that horizontal broadcast works
   
-  let true_elapsed = cores[2].core_debug.get_curr_elapsed();
-  cores[2].core_debug.update_elapsed(true_elapsed + Duration::new(2,0));
-  cores[0].send(Taurus::UP,1);
-  assert!(cores[2].core_debug.get_curr_elapsed().as_millis() >= 2000);
-  assert_eq!(cores[2].recv(Taurus::DOWN), 1);
-  assert!(cores[2].core_debug.get_curr_elapsed().as_millis() >= 2000);
-}
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::LEFT,1, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
 
-#[test]
-fn test_core_debug_time_received_is_greater(){
-  let processor : Processor<i32,i32, TaurusCoreInfo<i32>> = 
-    Processor::new(2,2, Box::new(TaurusNetworkBuilder{}));
-  let mut cores = processor.build_network();
-  // Check that horizontal broadcast works
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    let t = Instant::now();
+    while t.elapsed() < Duration::new(0,500000000) {
+      continue
+    }
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::RIGHT, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
   
-  let true_elapsed = cores[0].core_debug.get_curr_elapsed();
-  cores[0].core_debug.update_elapsed(true_elapsed + Duration::new(2,0));
-  dbg!(&cores[0].core_debug.get_curr_elapsed().as_nanos());
-
-  cores[0].send(Taurus::COL,1);
+  processor.collect_results();
   
-  assert!(cores[2].core_debug.get_curr_elapsed().as_millis() < 1000);
-  dbg!(&cores[2].core_debug.get_curr_elapsed().as_nanos());
-  assert_eq!(cores[2].recv(Taurus::COL), 1);
-  dbg!(&cores[2].core_debug.get_curr_elapsed().as_nanos());
-  assert!(cores[2].core_debug.get_curr_elapsed().as_millis() >= 2000);
-}
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[0].row);
+  dbg!(&processor.debugs[0].col);
+  dbg!(&processor.debugs[1].elapsed.as_millis());
 
+  assert!(processor.debugs[1].elapsed.as_millis() < 10);
+  assert!(processor.debugs[0].elapsed.as_millis() > 450);
+}
