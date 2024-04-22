@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon}};
 use crate::processor::{Processor, TaurusNetworkBuilder};
 use crate::types::{Matrix, Msg};

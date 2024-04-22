@@ -1,4 +1,4 @@
-use std::{rc::Rc, time::Duration};
+use std::rc::Rc;
 use sim::{types::Msg, processor::{TaurusNetworkBuilder, Processor}, matmul::{MatMul, comm_method::Hash}};
 use crate::{solve::Path, types::edge::{Edge, ToAdj}, adj_matrix::Store};
 

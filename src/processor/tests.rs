@@ -5,7 +5,7 @@ use std::{thread::sleep, time::Instant};
 #[test]
 fn general_correct_length(){
   let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
+  let processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let bchannels = processor.build_network();
   assert_eq!(bchannels.len(), 4);
@@ -14,7 +14,7 @@ fn general_correct_length(){
 #[test]
 fn general_correct_connection(){
   let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
+  let processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
   // Check that horizontal broadcast works
@@ -47,7 +47,7 @@ fn general_correct_connection(){
 #[test]
 fn general_correct_broadcast(){
   let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
+  let processor : Processor <i32,i32, TaurusCoreInfo<i32>> = 
     Processor::new(2,2, Box::new(network_builder));
   let mut cores = processor.build_network();
 

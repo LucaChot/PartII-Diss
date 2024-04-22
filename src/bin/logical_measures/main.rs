@@ -162,9 +162,9 @@ fn main() -> std::io::Result<()> {
   let json_data = serde_json::to_string(&group)?;
 
   // Write the JSON data to a file
-  let mut file = File::create(cli.output)?;
+  let mut file = File::create(&cli.output)?;
   file.write_all(json_data.as_bytes())?;
 
-  println!("Data has been written to data.json");
+  println!("Data has been written to {}", &cli.output);
   Ok(())
 }
