@@ -1,1 +1,4 @@
 /target
+data.json
+data_processing/.ipynb_checkpoints
+data_processing/env

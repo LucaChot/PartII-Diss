@@ -7,7 +7,6 @@ use std::any::type_name;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
-use std::ops::Range;
 
 const ITERATIONS : usize = 20;
 
@@ -37,16 +36,16 @@ impl Bench {
   }
 }
 
-#[derive(Serialize, Deserialize)]
-struct Group {
-  name : String,
-  data : Vec<Bench>
-}
-
 impl fmt::Display for Bench {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct Group {
+  name : String,
+  data : Vec<Bench>
 }
 
 impl Group {
@@ -61,9 +60,21 @@ impl fmt::Display for Group {
     }
 }
 
-fn against_processor<T>(proc_sizes : Range<usize>, matrix_size : usize) -> Bench
+#[derive(Serialize, Deserialize)]
+struct Groups {
+  data : Vec<Group>
+}
+
+impl Groups {
+  pub fn new() -> Self {
+    Groups { data: Vec::new() }
+  }
+}
+
+
+fn against_processor<T>(proc_sizes : impl Iterator<Item = usize>, matrix_size : usize) -> Bench
 where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
-  let mut bench = Bench::new(format!("{} Processor", type_name::<T>()));
+  let mut bench = Bench::new(format!("{} vs Processor", type_name::<T>()));
   println!("Running {bench}");
   for processor_size in proc_sizes {
     let mut run = Run::new(matrix_size, processor_size);
@@ -82,7 +93,7 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   }
   bench
 }
-fn against_processor_all(proc_sizes : Range<usize>, matrix_size : usize) -> Group {
+fn against_processor_all(proc_sizes : impl Iterator<Item = usize> + Clone, matrix_size : usize) -> Group {
   let mut group = Group::new(format!("All vs Processor"));
   println!("Running {group}");
   group.data.push(against_processor::<Hash>(proc_sizes.clone(), matrix_size));
@@ -91,9 +102,10 @@ fn against_processor_all(proc_sizes : Range<usize>, matrix_size : usize) -> Grou
   group
 }
 
-fn against_matrices<T>(proc_size : usize, matrix_sizes : Range<usize>) -> Bench
+fn against_matrices<T>(proc_size : usize, matrix_sizes : impl Iterator<Item = usize>) -> Bench
 where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
-  let mut bench = Bench::new(format!("{} Processor", type_name::<T>()));
+  let mut bench = Bench::new(format!("{} vs Matrices", type_name::<T>()));
+  println!("Running {bench}");
   for matrix_size in matrix_sizes {
     let mut run = Run::new(matrix_size, proc_size);
     for _ in 0..ITERATIONS {
@@ -112,12 +124,25 @@ where T : CommMethod<isize, TaurusCoreInfo<Matrix<isize>>> {
   bench
 }
 
+fn against_matrices_all(proc_size : usize, matrix_sizes : impl Iterator<Item=usize> + Clone) -> Group {
+  let mut group = Group::new(format!("All vs Matrices"));
+  println!("Running {group}");
+  group.data.push(against_matrices::<Hash>(proc_size, matrix_sizes.clone()));
+  group.data.push(against_matrices::<FoxOtto>(proc_size, matrix_sizes.clone()));
+  group.data.push(against_matrices::<Cannon>(proc_size, matrix_sizes.clone()));
+  group
+}
+
 fn main() -> std::io::Result<()> {
-  let sizes = 2..10;
+  let mut groups = Groups::new();
+
+  let proc_sizes = 2..11;
+  groups.data.push(against_processor_all(proc_sizes, 125));
   
-  let group = against_processor_all(sizes, 100);
+  let matrix_sizes = (50..200).step_by(25);
+  groups.data.push(against_matrices_all(6, matrix_sizes));
   // Convert the data to JSON format
-  let json_data = serde_json::to_string(&group)?;
+  let json_data = serde_json::to_string(&groups)?;
 
   // Write the JSON data to a file
   let mut file = File::create("data.json")?;
