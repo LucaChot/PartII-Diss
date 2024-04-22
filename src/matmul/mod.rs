@@ -8,8 +8,9 @@ pub mod comm_method;
 use comm_method::CommMethod;
 
 pub trait Multiplicable { 
-  fn neutral_element (rows : usize, cols : usize) -> Matrix<Self> where Self: Sized;
-  fn singleton_matrix<T : Multiplicable>(a : Self, b : Self, c : Self) -> Self;
+  fn initial_c (a : &Matrix<Self>, b : &Matrix<Self>) -> Matrix<Self> where Self: Sized;
+  fn neutral_matrix (rows : usize, cols : usize) -> Matrix<Self> where Self: Sized;
+  fn singleton_matrix(a : Self, b : Self, c : Self) -> Self;
 }
 
 pub fn serial_matmul<T : Multiplicable + Clone>(matrix_a : &Matrix<T>,
@@ -25,7 +26,7 @@ pub fn serial_matmul<T : Multiplicable + Clone>(matrix_a : &Matrix<T>,
       (0..cols_b)
         .map(|j| 
           (0..cols_a)
-            .fold(matrix_c[i][j].clone(), |acc, k| T::singleton_matrix::<T>(matrix_a[i][k].clone(), matrix_b[k][j].clone(), acc))
+            .fold(matrix_c[i][j].clone(), |acc, k| T::singleton_matrix(matrix_a[i][k].clone(), matrix_b[k][j].clone(), acc))
         ).collect::<Vec<T>>()
     ).collect::<Matrix<T>>()
 }
@@ -68,7 +69,7 @@ where T : Multiplicable + Sendable + 'static {
 
     let mut submatrices_a = F::outer_setup_a(self.processor.rows, self.processor.cols, &matrix_a);
     let mut submatrices_b = F::outer_setup_b(self.processor.rows, self.processor.cols, &matrix_b);
-    let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_b[0].len());
+    let mut matrix_c = T::initial_c(&matrix_a, &matrix_b);
     let mut submatrices_c = F::outer_setup_c(self.processor.rows, self.processor.cols, &matrix_c);
 
     for i in 0..self.processor.rows {
@@ -104,7 +105,7 @@ where T : Multiplicable + Sendable + 'static {
 
     let mut submatrices_a = F::outer_setup_a(self.processor.rows, self.processor.cols, &matrix_a);
     let mut submatrices_b = F::outer_setup_b(self.processor.rows, self.processor.cols, &matrix_a);
-    let mut matrix_c = T::neutral_element(matrix_a.len(), matrix_a[0].len());
+    let mut matrix_c = T::initial_c(&matrix_a, &matrix_a);
     let mut submatrices_c = F::outer_setup_c(self.processor.rows, self.processor.cols, &matrix_c);
 
     for i in 0..self.processor.rows {

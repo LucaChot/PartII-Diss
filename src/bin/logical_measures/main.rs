@@ -139,8 +139,15 @@ fn main() -> std::io::Result<()> {
   let proc_sizes = 2..11;
   groups.data.push(against_processor_all(proc_sizes, 125));
   
-  let matrix_sizes = (50..200).step_by(25);
-  groups.data.push(against_matrices_all(6, matrix_sizes));
+  let proc_sizes = 2..11;
+  groups.data.push(against_processor_all(proc_sizes, 250));
+
+  let proc_sizes = 2..11;
+  groups.data.push(against_processor_all(proc_sizes, 375));
+
+  let proc_sizes = 2..11;
+  groups.data.push(against_processor_all(proc_sizes, 500));
+
   // Convert the data to JSON format
   let json_data = serde_json::to_string(&groups)?;
 
