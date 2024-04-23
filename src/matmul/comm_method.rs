@@ -78,6 +78,30 @@ impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for FoxOtto
   }
 }
 
+pub struct PipeFoxOtto;
+
+impl<T>  CommMethod<T, TaurusCoreInfo<Matrix<T>>> for PipeFoxOtto 
+  where T : Sendable + Multiplicable {
+  fn matrix_mult(matrix_a : Matrix<T>, matrix_b : Matrix<T>, 
+                                     mut matrix_c : Matrix<T>, iterations : usize,
+                                     core_info : &mut TaurusCoreInfo<Matrix<T>>,
+                                     debugger : &mut Option<&mut CoreDebugger>) -> Matrix<T> {
+    let mut received_b = matrix_b;
+    for iter in 0..iterations {
+      core_info.debug_send(Taurus::UP, received_b, debugger);
+      if iter == (( iterations + core_info.col - core_info.row + 1)  % iterations ) {
+        core_info.debug_send(Taurus::ROW, matrix_a.clone(), debugger);
+      }
+      received_b = core_info.debug_recv(Taurus::DOWN, debugger);
+      let received_a = core_info.debug_recv(Taurus::ROW, debugger);
+      
+      matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
+      
+    }
+    return matrix_c;
+  }
+}
+
 pub struct Cannon;
 
 
