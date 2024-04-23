@@ -37,12 +37,11 @@ struct CommInfo {
 
 impl CommInfo {
   fn direct_time<T>(&self, item : &T) -> Duration {
-    self.latency + Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
+    Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
   }
 
   fn broadcast_time<T>(&self, item : &T) -> Duration {
     self.startup.mul(self.broadcast_size as u32)
-      + self.latency 
       + Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
   }
 }
@@ -84,7 +83,10 @@ impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
       _ => self.comm_info.direct_time(&data)
     };
     let recv_time =  match debugger {
-      Some(core_debugger) => Some(core_debugger.get_curr_elapsed() + comm_cost),
+      Some(core_debugger) => {
+        core_debugger.increment_time(comm_cost);
+        Some(core_debugger.get_curr_elapsed() + self.comm_info.latency)
+      },
       None => None,
     };
     match ch_option {

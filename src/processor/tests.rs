@@ -365,7 +365,9 @@ fn test_core_debug_time_progresses(){
   dbg!(&processor.debugs[1].elapsed.as_millis());
 
   assert!(processor.debugs[0].elapsed.as_millis() > 4400);
-  assert!(processor.debugs[1].elapsed.as_millis() > 400);
+  assert!(processor.debugs[0].elapsed.as_millis() < 4600);
+  assert!(processor.debugs[1].elapsed.as_millis() > 4400);
+  assert!(processor.debugs[1].elapsed.as_millis() < 4600);
 }
 
 #[test]
@@ -399,7 +401,8 @@ fn test_core_debug_time_handles_sleep(){
 
   assert!(processor.debugs[0].elapsed.as_millis() < 6020);
   assert!(processor.debugs[0].elapsed.as_millis() > 5980);
-  assert!(processor.debugs[1].elapsed.as_millis() < 10);
+  assert!(processor.debugs[1].elapsed.as_millis() > 3980);
+  assert!(processor.debugs[1].elapsed.as_millis() < 4020);
 }
 
 #[test]
@@ -470,6 +473,8 @@ fn test_comm_info_bandwidth_2ms(){
 
   assert!(processor.debugs[0].elapsed.as_millis() > 1900);
   assert!(processor.debugs[0].elapsed.as_millis() < 2100);
+  assert!(processor.debugs[1].elapsed.as_millis() > 1900);
+  assert!(processor.debugs[1].elapsed.as_millis() < 2100);
 }
 
 #[test]
@@ -501,6 +506,8 @@ fn test_comm_info_latency(){
 
   assert!(processor.debugs[0].elapsed.as_millis() > 2100);
   assert!(processor.debugs[0].elapsed.as_millis() < 2300);
+  assert!(processor.debugs[1].elapsed.as_millis() > 1980);
+  assert!(processor.debugs[1].elapsed.as_millis() < 2020);
 }
 
 #[test]
@@ -533,6 +540,42 @@ fn test_comm_info_startup_2cores(){
 
   assert!(processor.debugs[0].elapsed.as_millis() > 4900);
   assert!(processor.debugs[0].elapsed.as_millis() < 5100);
+  assert!(processor.debugs[1].elapsed.as_millis() > 4900);
+  assert!(processor.debugs[1].elapsed.as_millis() < 5100);
+}
+
+#[test]
+fn test_comm_info_startup_2cores_with_latency(){
+  let network_builder = TaurusNetworkBuilder::new(200000000, 1, 500000000);
+  let mut processor : Processor <(),i32, TaurusCoreInfo<i32>> = 
+    Processor::new(2,2, Box::new(network_builder));
+  let mut cores = processor.build_network();
+  // Check that horizontal broadcast works
+  
+  let p3 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_send(Taurus::ROW,1, &mut Some(debugger));
+  };
+
+  let p2 = move |core_info: &mut TaurusCoreInfo<i32>, debugger : &mut CoreDebugger| {
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+    core_info.debug_recv(Taurus::ROW, &mut Some(debugger));
+    dbg!(&debugger.get_curr_elapsed().as_millis());
+  };
+
+  processor.run_debug_core(p3, cores.pop().unwrap());
+  processor.run_debug_core(p2, cores.pop().unwrap());
+  
+  processor.collect_results();
+  
+  dbg!(&processor.debugs[0].elapsed.as_millis());
+  dbg!(&processor.debugs[1].elapsed.as_millis());
+
+  assert!(processor.debugs[0].elapsed.as_millis() > 5100);
+  assert!(processor.debugs[0].elapsed.as_millis() < 5300);
+  assert!(processor.debugs[1].elapsed.as_millis() > 4900);
+  assert!(processor.debugs[1].elapsed.as_millis() < 5100);
 }
 
 #[test]
@@ -565,4 +608,6 @@ fn test_comm_info_startup_3cores(){
 
   assert!(processor.debugs[0].elapsed.as_millis() > 5400);
   assert!(processor.debugs[0].elapsed.as_millis() < 5600);
+  assert!(processor.debugs[1].elapsed.as_millis() > 5400);
+  assert!(processor.debugs[1].elapsed.as_millis() < 5600);
 }
