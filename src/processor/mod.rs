@@ -1,295 +1,163 @@
-use crate::broadcast::{Broadcast, Sendable, Direct, Channel};
-use std::{time::Duration, thread::{JoinHandle, self}, mem::size_of_val, ops::{Mul, Div}};
+use crate::broadcast::Sendable;
+use std::{time::Duration, thread::{JoinHandle, self}, marker::PhantomData};
 
-pub mod debug;
+pub mod taurus;
+pub mod probe;
 
-use debug::{CoreDebug, CoreDebugger};
+use self::probe::{Prober, CoreDebug};
 
-struct CoreComm<T:Sendable>{
-  left : Direct<(T, Option<Duration>)>,
-  right : Direct<(T, Option<Duration>)>,
-  up : Direct<(T, Option<Duration>)>,
-  down : Direct<(T, Option<Duration>)>,
-  row : Broadcast<(T, Option<Duration>)>,
-  col : Broadcast<(T, Option<Duration>)>,
+
+pub trait TimedCore<T : Sendable> : Core<T> {
+  fn blank() -> Self;
+  fn transmission_time<S>(&self, item : &S ,ch_option : &Self::ChannelOption) -> Duration;
+  fn latency(&self) -> Duration;
 }
 
-impl<T : Sendable> CoreComm<T> {
-  fn new() -> CoreComm<T> {
-    CoreComm { 
-      left: Direct::empty(),
-      right: Direct::empty(),
-      up: Direct::empty(),
-      down: Direct::empty(),
-      row: Broadcast::empty(),
-      col: Broadcast::empty()
-    }
-  } 
-}
-
-#[derive(Clone,Copy)]
-struct CommInfo {
-  latency : Duration,
-  bandwidth  : usize,
-  startup : Duration,
-  broadcast_size : usize
-}
-
-impl CommInfo {
-  fn direct_time<T>(&self, item : &T) -> Duration {
-    Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
-  }
-
-  fn broadcast_time<T>(&self, item : &T) -> Duration {
-    self.startup.mul(self.broadcast_size as u32)
-      + Duration::new(size_of_val(item) as u64,0).div(self.bandwidth as u32)
-  }
-}
-
-
-pub trait CoreInfo<T : Sendable> : Send {
+pub trait Core<T : Sendable> {
   type ChannelOption;
 
-  fn get_row(&self) -> usize;
-  fn get_col(&self) -> usize;
-  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : &mut Option<&mut CoreDebugger>);
-  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : &mut Option<&mut CoreDebugger>) -> T;
-  fn send(&mut self, ch_option : Self::ChannelOption, data : T);
-  fn recv(&mut self, ch_option : Self::ChannelOption) -> T;
+  fn row(&self) -> usize;
+  fn col(&self) -> usize;
+  fn send(&mut self, data : T, ch_option : &Self::ChannelOption);
+  fn recv(&mut self, ch_option : &Self::ChannelOption) -> T;
 }
 
-pub enum Taurus {
-  LEFT,
-  RIGHT,
-  UP,
-  DOWN,
-  ROW,
-  COL,
-}
-
-pub struct TaurusCoreInfo<T : Sendable> {
-  pub row : usize,
-  pub col : usize,
-  core_comm : CoreComm<T>,
-  comm_info : CommInfo
-} 
-
-impl<T:Sendable> CoreInfo<T> for TaurusCoreInfo<T> {
-  type ChannelOption = Taurus;
-
-  fn debug_send(&mut self, ch_option : Self::ChannelOption, data : T, debugger : &mut Option<&mut CoreDebugger>){
-    let comm_cost  = match  ch_option {
-      Taurus::ROW | Taurus::COL => self.comm_info.broadcast_time(&data),
-      _ => self.comm_info.direct_time(&data)
-    };
-    let recv_time =  match debugger {
-      Some(core_debugger) => {
-        core_debugger.increment_time(comm_cost);
-        Some(core_debugger.get_curr_elapsed() + self.comm_info.latency)
-      },
-      None => None,
-    };
-    match ch_option {
-      Taurus::LEFT => self.core_comm.left.send((data,recv_time)),
-      Taurus::RIGHT => self.core_comm.right.send((data,recv_time)),
-      Taurus::UP => self.core_comm.up.send((data,recv_time)),
-      Taurus::DOWN => self.core_comm.down.send((data,recv_time)),
-      Taurus::ROW => self.core_comm.row.send((data,recv_time)),
-      Taurus::COL => self.core_comm.col.send((data,recv_time)),
-    }
-   match debugger {
-      Some(core_debugger) => {
-        match  ch_option {
-          Taurus::ROW | Taurus::COL => core_debugger.increment_broadcast(),
-          _ => core_debugger.increment_direct()
-        }
-      }
-      None => ()
-   }
-  }
-
-
-  fn debug_recv(&mut self, ch_option : Self::ChannelOption, debugger : &mut Option<&mut CoreDebugger>) -> T{
-    let (data, recv_time) = match ch_option {
-      Taurus::LEFT => self.core_comm.left.recv(),
-      Taurus::RIGHT => self.core_comm.right.recv(),
-      Taurus::UP => self.core_comm.up.recv(),
-      Taurus::DOWN => self.core_comm.down.recv(),
-      Taurus::ROW => self.core_comm.row.recv(),
-      Taurus::COL => self.core_comm.col.recv(),
-    };
-    match debugger {
-      Some(core_debugger) =>
-        match recv_time {
-          Some(time) => core_debugger.update_elapsed(time),
-          None => ()
-        }
-      None => ()
-    }
-    data
-  }
-
-  fn send(&mut self, ch_option : Self::ChannelOption, data : T) {
-    self.debug_send(ch_option, data, &mut None)
-  }
-  fn recv(&mut self, ch_option : Self::ChannelOption) -> T{
-    self.debug_recv(ch_option, &mut None)
-  }
-
-  fn get_row(&self) -> usize {
-    self.row
-  }
-
-  fn get_col(&self) -> usize {
-    self.col
-  }
-}
 
 pub trait NetworkBuilder<T:Sendable> {
-  type CoreType: CoreInfo<T>;
+  type CoreType: Core<T>;
   fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType>;
 }
 
-#[derive(Clone,Copy)]
-pub struct TaurusNetworkBuilder {
-  latency : Duration,
-  bandwidth : usize,
-  startup : Duration,
-}
 
-impl TaurusNetworkBuilder{
-  pub fn new(latency : usize, bandwidth  : usize, startup : usize)
-    -> Self { 
-      TaurusNetworkBuilder {
-        latency : if latency != 0 {Duration::new(0,latency as u32)} else {Duration::ZERO},
-        bandwidth : if bandwidth == 0 {1} else {bandwidth},
-        startup : if startup != 0 {Duration::new(0,startup as u32)} else {Duration::ZERO},
-    }}
-}
-
-impl<T:Sendable> NetworkBuilder<T> for TaurusNetworkBuilder {
-  type CoreType = TaurusCoreInfo<T>;
-
-  fn build(&self, rows: usize, cols : usize) -> Vec<Self::CoreType> {
-      let num_cores = cols * rows;
-      let mut cores : Vec<TaurusCoreInfo<T>> = Vec::with_capacity(num_cores);
-      for row in 0..rows {
-        for col in 0..cols {
-          cores.push(TaurusCoreInfo{ row, col, 
-            core_comm : CoreComm::new(), 
-            comm_info : CommInfo { latency: self.latency,
-                                   bandwidth : self.bandwidth,
-                                   startup : self.startup,
-                                   broadcast_size: rows }
-          })
-        }
-      }
-
-    for i in 0..rows {
-      let mut bchannels : Vec<Broadcast<(T, Option<Duration>)>> = Broadcast::new(cols);
-      for step in 0..cols {
-        let core_index = rows * i + step;
-        cores[core_index].core_comm.row = bchannels.pop().unwrap();
-      }
-    }
-
-    for i in 0..cols {
-      let mut bchannels : Vec<Broadcast<(T, Option<Duration>)>> = Broadcast::new(rows);
-      for step in 0..rows {
-        let core_index = rows * step + i;
-        cores[core_index].core_comm.col = bchannels.pop().unwrap();
-      }
-    }
-    
-    for i in 0..num_cores {
-      let (up, down) = Direct::new();
-      let up_index = i;
-      let down_index = ( num_cores + i - cols ) % num_cores;
-
-      cores[up_index].core_comm.up = up;
-      cores[down_index].core_comm.down = down; 
-
-      let (right, left) = Direct::new();
-      let right_index = i;
-      let left_index = i - ( i % cols ) + ( (i +  1) % cols );
-
-      cores[right_index].core_comm.right = right;
-      cores[left_index].core_comm.left = left; 
-    }
-    
-    return cores
-      
-  }
-}
-
-
-pub struct Processor<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T> + 'static> {
+pub struct Processor<H, T, CoreType> 
+  where H : Sendable + 'static,
+        T : Sendable + 'static,
+        CoreType : Core<T> + Send,
+        {
   pub rows : usize,
   pub cols : usize,
-  networkbuilder : Box<dyn NetworkBuilder<T, CoreType = CoreType>>,
-  handles : Vec<JoinHandle<(H, CoreDebug)>>,
-  debugs : Vec<CoreDebug>
+  cores : Vec<CoreType>,
+  handles : Vec<JoinHandle<H>>,
+  phantom : PhantomData<T>,
 }
 
-impl<H : Sendable + 'static, T : Sendable + 'static, CoreType: CoreInfo<T>> Processor<H, T, CoreType> {
-  pub fn new(rows : usize, cols : usize, networkbuilder : Box<dyn NetworkBuilder<T, CoreType = CoreType>>)
-    -> Processor<H, T, CoreType>{
-    Processor {rows , cols , networkbuilder, handles : Vec::new(), debugs : Vec::new() }
+impl<H, T, CoreType> Processor<H, T, CoreType> 
+  where H : Sendable + 'static,
+        T : Sendable + 'static,
+        CoreType : Core<T> + Send + 'static,
+        {
+  pub fn new(rows : usize, cols : usize, networkbuilder : impl NetworkBuilder<T, CoreType = CoreType>)
+    -> Self {
+    Processor {rows , cols, handles : Vec::new(), cores : networkbuilder.build(rows, cols), phantom : PhantomData}
   }
 
-  pub fn build_network(&self) -> Vec<CoreType> {
-    self.networkbuilder.build(self.rows, self.cols)
-  }
-
-  pub fn run_debug_core<F> (&mut self, f: F, mut core_info : CoreType) 
-  where
-      F: FnOnce(&mut CoreType, &mut CoreDebugger) -> H + Send + 'static,
-  {
-        let handle = thread::spawn(move || {
-          let mut debugger = CoreDebugger::new(core_info.get_row(), core_info.get_col());
-          let result = f(&mut core_info, &mut debugger);
-          (result, debugger.end())
-        });
-        self.handles.push(handle);
-  }
-
-  pub fn run_core<F> (&mut self, f: F, core_info : CoreType) 
+  pub fn run_core<F> (&mut self, f: F) 
   where
       F: FnOnce(&mut CoreType) -> H + Send + 'static,
   {
-      self.run_debug_core(|core_info , _| {
-        f(core_info)
-      }, core_info) 
+    match self.cores.pop() {
+      None => (),
+      Some(mut core_info) => {
+        let handle = thread::spawn(move || {
+          let result = f(&mut core_info);
+          result
+        });
+        self.handles.push(handle);
+      }
+    }
   }
 
   pub fn collect_results (&mut self) -> Vec<H> {
     let mut results = Vec::new();
     while !self.handles.is_empty() {
       let handle = self.handles.pop().unwrap();
-      let (result, debug) = handle.join().unwrap();
-      self.debugs.push(debug);
-      results.push(result);
+      results.push(handle.join().unwrap());
     }
     results
   }
+}
+
+
+pub struct ProbeProcessor<D, H, U, CoreType> 
+  where D : Sendable + 'static,
+        H : Sendable + 'static,
+        U : Sendable + 'static,
+        CoreType : Core<U> + Send,
+        {
+  proc : Processor<(H, CoreDebug<D>),U,CoreType>,
+  debugs : Vec<CoreDebug<D>>,
+}
+
+impl<D, H, U, CoreType> ProbeProcessor<D, H, U, CoreType> 
+  where D : Sendable + 'static,
+        H : Sendable + 'static,
+        U : Sendable + 'static,
+        CoreType : Core<U> + Send + 'static,
+        {
+  pub fn new(rows : usize, cols : usize, networkbuilder : impl NetworkBuilder<U, CoreType = CoreType>)
+    -> Self {
+    ProbeProcessor {
+      proc : Processor::new(rows , cols , networkbuilder),
+      debugs : Vec::new()
+    }
+  }
+
+  pub fn rows(&self) -> usize {
+    self.proc.rows
+  }
+
+  pub fn cols(&self) -> usize {
+    self.proc.cols
+  }
+
+  pub fn run_core<F,P> (&mut self, f: F) 
+  where
+      P : Prober<D,U,CoreType>,
+      F: FnOnce(&mut P) -> H + Send + 'static,
+  {
+    match self.proc.cores.pop() {
+      None => (),
+      Some(core_info) => {
+        let handle = thread::spawn(move || {
+          let mut probe = P::new(core_info);
+          let result = f(&mut probe);
+          (result, probe.extract_stat())
+        });
+        self.proc.handles.push(handle);
+      }
+    }
+  }
+
+  pub fn collect_results (&mut self) -> Vec<H> {
+    let results = self.proc.collect_results();
+    let mut data = Vec::new();
+    for (result, debug) in results.into_iter(){
+      self.debugs.push(debug);
+      data.push(result);
+    }
+    data
+  }
+
+  pub fn debug_stats(&self) -> &Vec<CoreDebug<D>> {
+    &self.debugs
+  }
+}
+
+impl<H, T, CoreType> ProbeProcessor<Duration, H, T, CoreType> 
+  where H : Sendable + 'static,
+        T : Sendable + 'static,
+        CoreType : TimedCore<T> + Send,
+        {
 
   pub fn display_debug_time (&self) {
     for debug in &self.debugs {
       println!("Core {} {} elapsed time: {}µs",
-               debug.row, debug.col, debug.elapsed.as_micros());
+               debug.row, debug.col, debug.stat.as_micros());
     }
   }
 
   pub fn max_debug_time (&self) ->  Option<u128>{
-    self.debugs.iter().map(|debug| debug.elapsed.as_micros()).max()
-  }
-
-  pub fn debug_direct_counts (&self) -> Vec<usize> {
-    self.debugs.iter().map(|debug| debug.direct_count).collect()
-  }
-
-  pub fn debug_broadcast_counts (&self) -> Vec<usize> {
-    self.debugs.iter().map(|debug| debug.broadcast_count).collect()
+    self.debugs.iter().map(|debug| debug.stat.as_micros()).max()
   }
 }
 

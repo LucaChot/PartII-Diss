@@ -1,14 +1,20 @@
-use crate::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto}};
-use crate::processor::{Processor, TaurusNetworkBuilder};
+use std::time::Duration;
+
+use crate::matmul::{ProbeMatMul, MatMul, comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto}};
+use crate::processor::probe::ThreadTimeProber;
+use crate:: processor::taurus::{TaurusNetworkBuilder, TimeTaurusNetworkBuilder, TaurusCore, TimedTaurusCore};
+use crate::processor::{Processor, ProbeProcessor};
 use crate::types::{Matrix, Msg};
 
 #[test]
 #[ignore]
 fn test_hash_matrix_mult_api() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
-  let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
+  let network_builder = TaurusNetworkBuilder;
+  let mut processor : Processor <(usize, usize, Matrix<isize>), Matrix<isize>, TaurusCore<Matrix<isize>>> = 
+    Processor::new(2,2, network_builder);
+  let mut p : MatMul<isize> = MatMul::new(&mut processor);
+
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
     vec![4,5,6],
@@ -34,9 +40,9 @@ fn test_hash_matrix_mult_api() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
-  let mut p : MatMul<isize> = MatMul::new(&mut processor);
+  let network_builder = TimeTaurusNetworkBuilder::new(0, 1, 0);
+  let mut processor = ProbeProcessor::new(2,2, network_builder);
+  let mut p = ProbeMatMul::new(&mut processor);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -50,7 +56,9 @@ fn test_fox_otto_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parallel_mult::<FoxOtto>(matrix_a, matrix_b);
+  let c = p.parallel_mult::
+    <FoxOtto, ThreadTimeProber<Matrix<isize>, TimedTaurusCore<(Matrix<isize>, Duration)>>>
+    (matrix_a, matrix_b);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -63,8 +71,9 @@ fn test_fox_otto_matrix_mult() {
 #[test]
 #[ignore]
 fn test_cannon_matrix_mult() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
+  let network_builder = TaurusNetworkBuilder;
+  let mut processor : Processor <(usize, usize, Matrix<isize>), Matrix<isize>, TaurusCore<Matrix<isize>>> = 
+    Processor::new(2,2, network_builder);
   let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
   let matrix_a: Matrix<isize> = vec![
@@ -92,9 +101,9 @@ fn test_cannon_matrix_mult() {
 #[test]
 #[ignore]
 fn test_pipefoxotto_matrix_mult() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
-  let mut p : MatMul<isize> = MatMul::new(&mut processor);
+  let network_builder = TimeTaurusNetworkBuilder::new(0, 1, 0);
+  let mut processor = ProbeProcessor::new(2,2, network_builder);
+  let mut p = ProbeMatMul::new(&mut processor);
   
   let matrix_a: Matrix<isize> = vec![
     vec![1,2,3],
@@ -108,7 +117,9 @@ fn test_pipefoxotto_matrix_mult() {
     vec![3,2,1],
   ];
 
-  let c = p.parallel_mult::<PipeFoxOtto>(matrix_a, matrix_b);
+  let c = p.parallel_mult::
+    <PipeFoxOtto, ThreadTimeProber<Matrix<isize>, TimedTaurusCore<(Matrix<isize>, Duration)>>>
+    (matrix_a, matrix_b);
 
   assert_eq!(c, vec![
     vec![30,24,18],
@@ -120,8 +131,9 @@ fn test_pipefoxotto_matrix_mult() {
 #[test]
 #[ignore]
 fn test_pipefoxotto_matrix_mult2() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
+  let network_builder = TaurusNetworkBuilder;
+  let mut processor : Processor <(usize, usize, Matrix<isize>), Matrix<isize>, TaurusCore<Matrix<isize>>> = 
+    Processor::new(2,2, network_builder);
   let mut p : MatMul<isize> = MatMul::new(&mut processor);
   
   let matrix_a: Matrix<isize> = vec![
@@ -148,8 +160,9 @@ fn test_pipefoxotto_matrix_mult2() {
 #[test]
 #[ignore]
 fn test_fox_otto_matrix_mult_with_reduction() {
-  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
-  let mut processor = Processor::new(3,3, Box::new(network_builder));
+  let network_builder = TaurusNetworkBuilder;
+  let mut processor : Processor <(usize, usize, Matrix<Msg>), Matrix<Msg>, TaurusCore<Matrix<Msg>>> = 
+    Processor::new(2,2, network_builder);
   let mut p : MatMul<Msg> = MatMul::new(&mut processor);
   
   // P matrix
