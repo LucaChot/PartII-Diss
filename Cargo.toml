@@ -12,8 +12,6 @@ name = "logical_measures"
 path = "src/bin/logical_measures/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[dev-dependencies]
-criterion = "0.5.1"
 
 [dependencies]
 clap_derive = "4.5.4"
@@ -22,7 +20,3 @@ bincode = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 clap = { version = "4.5.4", features = ["derive"] }
-
-[[bench]]
-name = "benchmarks"
-harness = false
