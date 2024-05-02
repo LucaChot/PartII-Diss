@@ -32,6 +32,10 @@ impl CoreDebugger {
     }
   }
 
+  pub fn increment_time(&mut self, increment : Duration) {
+    self.core_debug.additional += increment;
+  }
+
   pub fn increment_direct(&mut self) {
     self.core_debug.direct_count += 1;
   }
