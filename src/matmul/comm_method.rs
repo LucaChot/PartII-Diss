@@ -87,12 +87,14 @@ impl<T, CoreType>  CommMethod<T, CoreType> for PipeFoxOtto
     let mut received_b = matrix_b;
     for iter in 0..iterations {
       core_info.send(received_b, &TaurusOption::UP);
-      if iter == (( iterations + core_info.col() - core_info.row() + 1)  % iterations ) {
+      if iter == (( iterations + core_info.col() - core_info.row() - 1)  % iterations ) {
         core_info.send(matrix_a.clone(), &TaurusOption::ROW);
       }
       received_b = core_info.recv(&TaurusOption::DOWN);
       let received_a = core_info.recv(&TaurusOption::ROW);
-      
+
+      assert_eq!(received_a[0].len(), received_b.len(), 
+                 "Core {} {} error on iter {}", core_info.row(), core_info.col(), iter);
       matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
       
     }
