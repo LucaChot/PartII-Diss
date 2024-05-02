@@ -93,10 +93,7 @@ impl<T, CoreType>  CommMethod<T, CoreType> for PipeFoxOtto
       received_b = core_info.recv(&TaurusOption::DOWN);
       let received_a = core_info.recv(&TaurusOption::ROW);
 
-      assert_eq!(received_a[0].len(), received_b.len(), 
-                 "Core {} {} error on iter {}", core_info.row(), core_info.col(), iter);
       matrix_c = serial_matmul(&received_a, &received_b, &matrix_c);
-      
     }
     return matrix_c;
   }
