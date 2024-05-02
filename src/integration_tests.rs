@@ -1,4 +1,4 @@
-use crate::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon}};
+use crate::matmul::{MatMul, comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto}};
 use crate::processor::{Processor, TaurusNetworkBuilder};
 use crate::types::{Matrix, Msg};
 
@@ -87,6 +87,62 @@ fn test_cannon_matrix_mult() {
     vec![138,114,90]
   ]);
 
+}
+
+#[test]
+#[ignore]
+fn test_pipefoxotto_matrix_mult() {
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
+  let mut processor = Processor::new(2,2, Box::new(network_builder));
+  let mut p : MatMul<isize> = MatMul::new(&mut processor);
+  
+  let matrix_a: Matrix<isize> = vec![
+    vec![1,2,3],
+    vec![4,5,6],
+    vec![7,8,9],
+  ];
+
+  let matrix_b: Matrix<isize> = vec![
+    vec![9,8,7],
+    vec![6,5,4],
+    vec![3,2,1],
+  ];
+
+  let c = p.parallel_mult::<PipeFoxOtto>(matrix_a, matrix_b);
+
+  assert_eq!(c, vec![
+    vec![30,24,18],
+    vec![84,69,54],
+    vec![138,114,90]
+  ]);
+}
+
+#[test]
+#[ignore]
+fn test_pipefoxotto_matrix_mult2() {
+  let network_builder = TaurusNetworkBuilder::new(0, 1, 0);
+  let mut processor = Processor::new(2,2, Box::new(network_builder));
+  let mut p : MatMul<isize> = MatMul::new(&mut processor);
+  
+  let matrix_a: Matrix<isize> = vec![
+    vec![2,4,1],
+    vec![3,5,2],
+    vec![6,7,3],
+  ];
+
+  let matrix_b: Matrix<isize> = vec![
+    vec![1,3,2],
+    vec![4,2,5],
+    vec![6,1,3],
+  ];
+
+  let c = p.parallel_mult::<PipeFoxOtto>(matrix_a, matrix_b);
+
+  assert_eq!(c, vec![
+    vec![24,15,27],
+    vec![35,21,37],
+    vec![52,35,56]
+  ]);
 }
 
 #[test]

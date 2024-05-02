@@ -1,6 +1,6 @@
 use std::any::type_name;
 
-use sim::{matmul::{MatMul, comm_method::{Hash, CommMethod, FoxOtto, Cannon}}, types::Matrix};
+use sim::{matmul::{MatMul, comm_method::{Hash, CommMethod, FoxOtto, Cannon, PipeFoxOtto}}, types::Matrix};
 use sim::processor::{Processor, TaurusNetworkBuilder, TaurusCoreInfo};
 use crate::bench::{Run, Bench, Group};
 use crate::ITERATIONS;
@@ -42,6 +42,7 @@ pub fn against_processor_all(proc_sizes : impl Iterator<Item = usize> + Clone
   group.data.push(against_processor::<Hash>(proc_sizes.clone(), matrix_size, network_builder));
   group.data.push(against_processor::<FoxOtto>(proc_sizes.clone(), matrix_size, network_builder));
   group.data.push(against_processor::<Cannon>(proc_sizes.clone(), matrix_size, network_builder));
+  group.data.push(against_processor::<PipeFoxOtto>(proc_sizes.clone(), matrix_size, network_builder));
   group
 }
 
@@ -81,5 +82,6 @@ pub fn against_matrices_all(proc_size : usize,
   group.data.push(against_matrices::<Hash>(proc_size, matrix_sizes.clone(), network_builder));
   group.data.push(against_matrices::<FoxOtto>(proc_size, matrix_sizes.clone(),network_builder));
   group.data.push(against_matrices::<Cannon>(proc_size, matrix_sizes.clone(),network_builder));
+  group.data.push(against_matrices::<PipeFoxOtto>(proc_size, matrix_sizes.clone(),network_builder));
   group
 }

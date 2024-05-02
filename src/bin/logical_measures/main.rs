@@ -1,5 +1,5 @@
 use clap_derive::ValueEnum;
-use sim::{matmul::comm_method::{Hash, FoxOtto, Cannon}, processor::TaurusNetworkBuilder};
+use sim::{matmul::comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto}, processor::TaurusNetworkBuilder};
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -86,6 +86,8 @@ enum CliComm {
   FoxOtto,
   /// Cannon
   Cannon,
+  /// Pipelined FoxOtto
+  PipeFoxOtto
 }
 
 impl CliComm {
@@ -94,6 +96,7 @@ impl CliComm {
       Self::Hash => "Hash",
       Self::FoxOtto => "FoxOtto",
       Self::Cannon => "Cannon",
+      Self::PipeFoxOtto => "Pipeline FoxOtto",
     }
   }
 }
@@ -128,6 +131,10 @@ fn main() -> std::io::Result<()> {
             CliComm::Cannon => {
               g.data.push(against_matrices::<Cannon>(proc, matrix_sizes,network_builder));
               g
+            },
+            CliComm::PipeFoxOtto => {
+              g.data.push(against_matrices::<PipeFoxOtto>(proc, matrix_sizes,network_builder));
+              g
             }
           }
         }
@@ -150,6 +157,10 @@ fn main() -> std::io::Result<()> {
             },
             CliComm::Cannon => {
               g.data.push(against_processor::<Cannon>(proc_sizes, matrix, network_builder));
+              g
+            },
+            CliComm::PipeFoxOtto => {
+              g.data.push(against_processor::<PipeFoxOtto>(proc_sizes, matrix, network_builder));
               g
             }
           }
