@@ -1,5 +1,8 @@
 use std::rc::Rc;
-use sim::{types::Msg, processor::{TaurusNetworkBuilder, Processor}, matmul::{MatMul, comm_method::Hash}};
+use sim::types::Msg;
+use sim::processor::Processor;
+use sim::processor::taurus::TaurusNetworkBuilder;
+use sim::matmul::{MatMul, comm_method::Hash};
 use crate::{solve::Path, types::edge::{Edge, ToAdj}, adj_matrix::Store};
 
 use super::Solver;
@@ -189,8 +192,8 @@ fn test_solve_complex(){
 
   let iterations = f64::ceil(f64::log2(adj.len() as f64)) as usize;
   dbg!(&iterations);
-  let network_builder = TaurusNetworkBuilder::new(0, 1000000000, 0);
-  let mut processor = Processor::new(2,2, Box::new(network_builder));
+  let network_builder = TaurusNetworkBuilder;
+  let mut processor = Processor::new(2,2, network_builder);
   let mut matmul : MatMul<Msg> = MatMul::new(&mut processor);
   let c = matmul.parallel_square::<Hash>(adj,iterations);
   dbg!(&c);

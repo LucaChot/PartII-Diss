@@ -1,5 +1,6 @@
 use clap_derive::ValueEnum;
-use sim::{matmul::comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto}, processor::TaurusNetworkBuilder};
+use sim::matmul::comm_method::{Hash, FoxOtto, Cannon, PipeFoxOtto};
+use sim::processor::taurus::TimeTaurusNetworkBuilder;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -111,7 +112,7 @@ fn main() -> std::io::Result<()> {
     ITERATIONS = cli.iter;
   }
 
-  let network_builder = TaurusNetworkBuilder::new(cli.latency, cli.bandwidth, cli.startup);
+  let network_builder = TimeTaurusNetworkBuilder::new(cli.latency, cli.bandwidth, cli.startup);
   let group = match cli.command {
     Command::Matrix { start, end, step, proc} => {
       let matrix_sizes = (start..=end).step_by(step);
